@@ -1,5 +1,5 @@
 import { FillGradient, type Graphics } from 'pixi.js'
-import { TILE, project, projectPoly, zScale, type Pos } from '../geometry/project.ts'
+import { projectPoly, zScale, type Pos } from '../geometry/project.ts'
 import { disc, rect, type Box } from '../view/draw.ts'
 import type { ArtStyle } from './style.ts'
 
@@ -595,56 +595,6 @@ export function cone(p: Paint, col: number, row: number, r: number, z0: number, 
   }
   half(-Math.PI / 4, Math.PI / 4, f.right)
   half(Math.PI / 4, (3 * Math.PI) / 4, f.left)
-}
-
-/** A slightly squashed screen-space circle (tree canopies). */
-function circle(x: number, y: number, rad: number): number[] {
-  const pts: number[] = []
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2
-    pts.push(x + Math.cos(a) * rad, y + Math.sin(a) * rad * 0.94)
-  }
-  return pts
-}
-
-/**
- * Round low-poly canopy (a 7-sided blob) floating at height z: a shade crescent, the body, and a
- * sunlit cap toward the top-left. Drawn in screen space around the projected center.
- */
-export function blob(p: Paint, col: number, row: number, z: number, r: number, color: number) {
-  const c = project({ col, row, z }, p.t)
-  const px = r * TILE.w * 0.5
-  const ngon = (x: number, y: number, rad: number, fill: number) => {
-    const pts: number[] = []
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2 - Math.PI / 2
-      pts.push(x + Math.cos(a) * rad, y + Math.sin(a) * rad * 0.92)
-    }
-    p.g.poly(pts).fill(fill)
-  }
-  const f = faces(color, p.style)
-  if (ART.rich) {
-    // A round canopy: shaded body, then a soft sunlit cap and a soft shade toward the bottom.
-    p.g.poly(circle(c.x, c.y, px)).fill(color)
-    fadeIn(p.g, circle(c.x, c.y, px), f.right, 0.75)
-    soft(p.g, circle(c.x - px * 0.3, c.y - px * 0.34, px * 0.75), light(color, 0.32), 0.85)
-    return
-  }
-  ngon(c.x + px * 0.12, c.y + px * 0.1, px, f.right)
-  ngon(c.x, c.y, px * 0.94, color)
-  ngon(c.x - px * 0.28, c.y - px * 0.3, px * 0.5, light(color, 0.18))
-}
-
-/** A tree: trunk plus a round canopy or a pine cone, sized by `s` (about 0.1 to 0.25). */
-export function tree(p: Paint, col: number, row: number, z: number, s: number, color: number, pine = false) {
-  shadow(p, col - s * 0.5, row - s * 0.5, col + s * 0.5, row + s * 0.5, z, s * 1.2, false)
-  box(
-    p,
-    { col0: col - 0.015, row0: row - 0.015, col1: col + 0.015, row1: row + 0.015, z0: z, z1: z + s * 0.7 },
-    p.style.trunk,
-  )
-  if (pine) cone(p, col, row, s * 0.55, z + s * 0.35, z + s * 2.2, color)
-  else blob(p, col, row, z + s * 1.15, s * 0.62, color)
 }
 
 /**

@@ -17,6 +17,7 @@ import { OddsLabels, type OddsMark } from './view/odds.ts'
 import { ScoutPin } from './view/pin.ts'
 import { TileView } from './view/tiles.ts'
 import { TokenView } from './view/token.ts'
+import { CloudShadows } from './view/clouds.ts'
 
 /** Real-time milliseconds for a full day-to-night (or back) fade. */
 const NIGHT_FADE_MS = 4000
@@ -120,6 +121,7 @@ export class Board {
 
   private readonly tiles: TileView[] = []
   private readonly city: CityView
+  private readonly clouds: CloudShadows
   private readonly tokens = new Map<string, TokenView>()
   private readonly colors = new Map<string, number>()
   private readonly owners: (string | null)[] = Array.from({ length: 40 }, () => null)
@@ -154,6 +156,7 @@ export class Board {
   constructor(app: Application, citySeed = 1) {
     this.app = app
     this.city = new CityView(citySeed, this.actorLayer)
+    this.clouds = new CloudShadows(citySeed)
     this.camera = new Camera(this.world)
     this.camera.shakeTuning = this.juice.shake
     this.dice = new DiceView({
@@ -185,6 +188,7 @@ export class Board {
       this.tileLayer,
       this.shadowLayer,
       this.actorLayer,
+      this.clouds.container,
       this.oddsLabels.container,
       this.scoutPin.container,
       this.dice.container,
@@ -238,6 +242,7 @@ export class Board {
   setTuning(tuning: Partial<BoardTuning>): void {
     Object.assign(this.tuning, tuning)
     this.city.life.setOn(this.tuning.ambient)
+    this.clouds.setOn(this.tuning.ambient)
   }
 
   /** Update cost of the city's cars and trains (ms per frame), for profiling; `reset` starts over. */
@@ -309,6 +314,7 @@ export class Board {
     this.app.renderer.background.color = mix(palette.tableDay, palette.table, n)
     for (const tile of this.tiles) tile.setNight(n)
     this.city.setNight(n)
+    this.clouds.setNight(n)
     for (const token of this.tokens.values()) this.lightToken(token)
   }
 
@@ -837,6 +843,7 @@ export class Board {
     this.dice.update(dt)
     this.camera.update(real)
     this.city.life.update(dt, this.viewRect())
+    this.clouds.update(dt, this.tuning.reducedMotion)
     if (this.night !== this.nightTarget) {
       // Ease in real time (about 4 s for a full dusk), unaffected by game speed or hit-stop.
       const step = real / NIGHT_FADE_MS
@@ -888,6 +895,7 @@ export class Board {
     this.ground.draw(t)
     for (const tile of this.tiles) tile.draw(t)
     this.city.draw(t)
+    this.clouds.draw(t)
     if (this.debug) this.drawDebug()
     this.camera.setBounds(this.worldBounds())
   }

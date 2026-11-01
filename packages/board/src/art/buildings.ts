@@ -1,5 +1,5 @@
 import { projectPoly } from '../geometry/project.ts'
-import { rect, type Box } from '../view/draw.ts'
+import { disc, rect, type Box } from '../view/draw.ts'
 import type { Pos } from '../geometry/project.ts'
 import {
   ART,
@@ -11,17 +11,18 @@ import {
   cylinder,
   door,
   gable,
+  hash3,
   light,
   mix,
   mullions,
   shadow,
   stripe,
-  tree,
   soft,
   wash,
   windows,
   type Paint,
 } from './paint.ts'
+import { bush, tree } from './flora.ts'
 
 /**
  * Building generators. Each draws one building on a lot (board units, standing on `lot.z`) from a
@@ -58,7 +59,11 @@ function parapet(p: Paint, b: Box, color: number) {
   box(p, { col0: b.col0, row0: b.row1 - w, col1: b.col1, row1: b.row1, z0: b.z1, z1: b.z1 + 0.025 }, color)
 }
 
-/** Rooftop clutter: a few small boxes (air handlers, stair heads). */
+/**
+ * Rooftop dressing. The seeded `rng` places `n` items exactly as before (so the city layout never
+ * changes); a hash of the roof picks what they are (Visual polish, D73): a roof garden, solar
+ * panels, a billboard that glows at night, or air handlers with a fan on top.
+ */
 function rooftop(p: Paint, b: Box, rng: () => number, n: number) {
   const items: Box[] = []
   for (let i = 0; i < n; i++) {
@@ -67,7 +72,111 @@ function rooftop(p: Paint, b: Box, rng: () => number, n: number) {
     const r = b.row0 + 0.05 + rng() * Math.max(0, b.row1 - b.row0 - 0.1 - s)
     items.push({ col0: c, row0: r, col1: c + s, row1: r + s, z0: b.z1, z1: b.z1 + 0.03 + rng() * 0.04 })
   }
-  for (const it of items.toSorted((x, y) => x.col0 + x.row0 - (y.col0 + y.row0))) box(p, it, 0x94a3b8)
+  const w = b.col1 - b.col0
+  const d = b.row1 - b.row0
+  // The roof membrane: a slightly darker inset, so the roof reads as a surface with an edge.
+  if (ART.rich && w > 0.16 && d > 0.16)
+    p.g.poly(rect(b.col0 + 0.03, b.row0 + 0.03, b.col1 - 0.03, b.row1 - 0.03, b.z1 + 0.001, p.t)).fill({
+      color: p.style.shadow,
+      alpha: 0.1,
+    })
+  const k = ART.rich && w > 0.22 && d > 0.22 ? hash3(b.col0, b.row0, b.z1) : 1
+  const sorted = items.toSorted((x, y) => x.col0 + x.row0 - (y.col0 + y.row0))
+  if (k < 0.3) return roofGarden(p, b)
+  if (k < 0.48) return solar(p, b)
+  if (k < 0.62 && b.z1 > 0.5) {
+    billboard(p, b, k)
+    return
+  }
+  for (const it of sorted) airHandler(p, it)
+}
+
+/** A boxy air handler with a dark fan disc on top. */
+function airHandler(p: Paint, it: Box) {
+  box(p, it, 0x94a3b8)
+  if (!ART.rich) return
+  const cc = (it.col0 + it.col1) / 2
+  const cr = (it.row0 + it.row1) / 2
+  p.g.poly(disc(cc, cr, (it.col1 - it.col0) * 0.32, it.z1 + 0.001, p.t, 12)).fill(0x5b6676)
+}
+
+/** A green roof: planted bed inside a curb, bushes and a small tree, a path of pavers. */
+function roofGarden(p: Paint, b: Box) {
+  const s = p.style
+  const m = 0.04
+  const bed = { col0: b.col0 + m, row0: b.row0 + m, col1: b.col1 - m, row1: b.row1 - m }
+  box(p, { ...bed, z0: b.z1, z1: b.z1 + 0.012 }, mix(s.park, 0x6b5442, 0.35))
+  p.g
+    .poly(rect(bed.col0 + 0.01, bed.row0 + 0.01, bed.col1 - 0.01, bed.row1 - 0.01, b.z1 + 0.013, p.t))
+    .fill(s.park)
+  const cm = (bed.col0 + bed.col1) / 2
+  p.g.poly(rect(cm - 0.025, bed.row0 + 0.01, cm + 0.025, bed.row1 - 0.01, b.z1 + 0.014, p.t)).fill(s.parkPath)
+  const z = b.z1 + 0.013
+  const spots: { col: number; row: number; t: boolean }[] = []
+  for (let i = 0; i < 5; i++) {
+    const h = hash3(b.col0 + i, b.row0, i)
+    const left = i % 2 === 0
+    spots.push({
+      col: left
+        ? bed.col0 + 0.04 + h * Math.max(0, cm - bed.col0 - 0.1)
+        : cm + 0.06 + h * Math.max(0, bed.col1 - cm - 0.1),
+      row: bed.row0 + 0.05 + ((i + 0.5) / 5) * (bed.row1 - bed.row0 - 0.1),
+      t: i === 2,
+    })
+  }
+  for (const sp of spots.toSorted((x, y) => x.col + x.row - (y.col + y.row))) {
+    const color = s.trees[Math.floor(hash3(sp.col, sp.row, 3) * s.trees.length)]!
+    if (sp.t) tree(p, sp.col, sp.row, z, 0.1, color)
+    else bush(p, sp.col, sp.row, z, 0.08, color)
+  }
+}
+
+/** Rows of solar panels tilted toward the viewer. */
+function solar(p: Paint, b: Box) {
+  const m = 0.05
+  const rows = Math.max(1, Math.floor((b.row1 - b.row0 - 2 * m) / 0.09))
+  for (let i = 0; i < rows; i++) {
+    const r0 = b.row0 + m + i * 0.09
+    const pts: Pos[] = [
+      { col: b.col0 + m, row: r0, z: b.z1 + 0.04 },
+      { col: b.col1 - m, row: r0, z: b.z1 + 0.04 },
+      { col: b.col1 - m, row: r0 + 0.065, z: b.z1 + 0.012 },
+      { col: b.col0 + m, row: r0 + 0.065, z: b.z1 + 0.012 },
+    ]
+    p.g.poly(projectPoly(pts, p.t)).fill(0x2b3f74)
+    p.g.poly(projectPoly(pts, p.t), true).stroke({ color: 0x9fb4e6, width: 0.8, alpha: 0.7 })
+  }
+}
+
+/** Billboard colors: a sign face and its glow at night. */
+const SIGNS = [0xf472b6, 0x38bdf8, 0xfbbf24, 0xa78bfa, 0x34d399] as const
+
+/** A billboard on two legs facing +row, lettered in pale bars; it glows at night. */
+function billboard(p: Paint, b: Box, k: number) {
+  const color = SIGNS[Math.floor(hash3(b.col1, b.row1, 9) * SIGNS.length)]!
+  const w = Math.min(0.4, (b.col1 - b.col0) * 0.8)
+  const c0 = (b.col0 + b.col1) / 2 - w / 2
+  const r = b.row0 + (b.row1 - b.row0) * (0.3 + k * 0.2)
+  const z0 = b.z1 + 0.05
+  const z1 = z0 + w * 0.5
+  for (const c of [c0 + 0.04, c0 + w - 0.04])
+    box(p, { col0: c - 0.008, row0: r - 0.008, col1: c + 0.008, row1: r + 0.008, z0: b.z1, z1: z0 }, 0x64748b)
+  box(p, { col0: c0, row0: r - 0.012, col1: c0 + w, row1: r + 0.012, z0, z1 }, 0x334155)
+  const face = (a0: number, a1: number, h0: number, h1: number): Pos[] => [
+    { col: c0 + w * a0, row: r + 0.013, z: z0 + (z1 - z0) * h1 },
+    { col: c0 + w * a1, row: r + 0.013, z: z0 + (z1 - z0) * h1 },
+    { col: c0 + w * a1, row: r + 0.013, z: z0 + (z1 - z0) * h0 },
+    { col: c0 + w * a0, row: r + 0.013, z: z0 + (z1 - z0) * h0 },
+  ]
+  const panel = projectPoly(face(0.05, 0.95, 0.1, 0.9), p.t)
+  p.g.poly(panel).fill(color)
+  const bars = [face(0.12, 0.62, 0.55, 0.75), face(0.12, 0.45, 0.25, 0.4)].map((q) => projectPoly(q, p.t))
+  for (const q of bars) p.g.poly(q).fill(light(color, 0.75))
+  const lights = p.lights
+  if (!lights) return
+  soft(lights, projectPoly(face(-0.7, 1.7, -1.4, 2.2), p.t), color, 0.75)
+  lights.poly(panel).fill(light(color, 0.3))
+  for (const q of bars) lights.poly(q).fill(0xffffff)
 }
 
 /** Water tank on stilts, the classic walk-up silhouette. */

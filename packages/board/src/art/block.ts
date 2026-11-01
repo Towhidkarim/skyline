@@ -1,6 +1,7 @@
 import { cosmeticRng } from '../view/draw.ts'
 import { glassTower, house, landmark, office, park, pick, plaza, walkup, type Lot } from './buildings.ts'
-import { ART, box, flat, lamp, mix, tree, type Paint } from './paint.ts'
+import { ART, box, flat, lamp, mix, type Paint } from './paint.ts'
+import { tree } from './flora.ts'
 
 /**
  * One city block, laid out like a real one: a sidewalk around the edge, buildings fronting the
@@ -204,7 +205,7 @@ function curbProps(p: Paint, a: Lot, rng: () => number, side: 'back' | 'front') 
   }
   for (const pr of props.toSorted((x, y) => x.col + x.row - (y.col + y.row))) {
     if (pr.lamp) lamp(p, pr.col, pr.row, a.z)
-    else tree(p, pr.col, pr.row, a.z, 0.075 + rng() * 0.03, pick(rng, p.style.trees))
+    else tree(p, pr.col, pr.row, a.z, 0.09 + rng() * 0.03, pick(rng, p.style.trees))
   }
 }
 

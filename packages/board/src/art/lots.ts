@@ -1,9 +1,10 @@
-import { cosmeticRng } from '../view/draw.ts'
+import { projectPoly } from '../geometry/project.ts'
+import { cosmeticRng, disc, rect } from '../view/draw.ts'
 import { FLOOR, glassTower, house, inset, office, pick, townhouses, walkup, type Lot } from './buildings.ts'
 import {
+  NIGHT,
   beacon,
   bench,
-  blob,
   box,
   cylinder,
   flat,
@@ -12,12 +13,13 @@ import {
   light,
   mix,
   shadow,
+  soft,
   stripe,
-  tree,
   wash,
   windows,
   type Paint,
 } from './paint.ts'
+import { blob, bush, tree } from './flora.ts'
 
 /**
  * What stands on a property lot at each development level. Each color group gets one
@@ -83,43 +85,89 @@ export function drawLot(
 }
 
 /**
- * Empty lot for sale: a low raised plot (lawn, gravel or paving by architecture family, lightly
- * tinted with the group color) with a few seeded props and a "for sale" board near the front.
- * Raised, never edged by walls on the back sides: a back hedge read as the walls of a pit.
+ * Empty lot for sale (Visual polish, D74): a raised planter bed with a pale concrete curb, its
+ * ground (lawn, gravel or paving by architecture family, lawns lightly tinted with the group
+ * color) set into it, clumps of bushes and a tree at the back corners, a district prop or two and
+ * a "for sale" board near the front that a small spotlight picks out at night. Clumps, never a
+ * continuous back hedge: a hedge along the back read as the walls of a pit.
  */
 function forSale(p: Paint, lot: Lot, rng: () => number, family: Family, tint: number | null) {
   const s = p.style
-  // Set well inside the lot, so the tile frames the plot instead of the plot filling the tile.
-  const l = inset(lot, 0.09)
+  // Set inside the lot, so the tile frames the bed instead of the bed filling the tile.
+  const l = inset(lot, 0.07)
   const w = l.col1 - l.col0
   const d = l.row1 - l.row0
   // Lot-relative position: u along col, v along row; 1 is the front (toward the camera).
   const at = (u: number, v: number) => ({ col: l.col0 + w * u, row: l.row0 + d * v })
   const tinted = (c: number, k: number) => (tint === null ? c : mix(c, tint, k))
-  const lawn = tinted(mix(s.park, s.ground, 0.18), 0.12)
+  const lawn = tinted(mix(s.park, s.ground, 0.12), 0.12)
   // Only lawns take the group tint: tinted gravel or paving reads as a colored rug.
   const ground = family === 'brick' ? 0xb4b6b0 : family === 'modern' ? mix(s.sidewalk, s.ground, 0.7) : lawn
-  const top = l.z + 0.025
-  // The plot: a thin slab whose front faces show, so it reads as raised land.
-  box(p, { ...l, z0: l.z, z1: top }, ground)
-  plotSurface(p, l, top, family, ground, rng)
+  const top = l.z + 0.045
+  // Contact shadow, then the curb: a slab whose front faces show, so the bed reads as raised.
+  soft(
+    p.g,
+    rect(l.col0 - 0.04, l.row0 - 0.04, l.col1 + 0.09, l.row1 + 0.09, l.z + 0.001, p.t),
+    s.shadow,
+    0.35,
+  )
+  box(p, { ...l, z0: l.z, z1: top }, mix(s.sidewalk, s.ground, 0.4))
+  const bed = inset({ ...l, z: top }, 0.028)
+  flat(p, bed.col0, bed.row0, bed.col1, bed.row1, top + 0.001, ground)
+  // A thin inner shade along the back curbs: the bed sits a little below its rim.
+  flat(p, bed.col0, bed.row0, bed.col1, bed.row0 + 0.018, top + 0.002, mix(ground, s.shadow, 0.25))
+  flat(p, bed.col0, bed.row0, bed.col0 + 0.018, bed.row1, top + 0.002, mix(ground, s.shadow, 0.18))
+  plotSurface(p, bed, top + 0.002, family, ground, rng)
+
+  // Greenery at the back corners: a tree with bushes around it on one side, a clump on the other.
+  const green = () => pick(rng, s.trees)
+  const z = top + 0.002
+  const left = rng() < 0.5
+  const tc = at(left ? 0.1 : 0.9, 0.1)
+  const oc = at(left ? 0.9 : 0.1, 0.1)
+  if (family !== 'modern') {
+    bush(p, tc.col + (left ? 0.07 : -0.07), tc.row - 0.02, z, 0.08, green())
+    tree(p, tc.col, tc.row, z, 0.12 + rng() * 0.03, green(), family === 'glass' && rng() < 0.5)
+    bush(p, oc.col, oc.row, z, 0.09, green())
+    bush(p, oc.col + (left ? -0.07 : 0.07), oc.row + 0.05, z, 0.07, green())
+  }
 
   // The sign stands near the front, left or right. Props take two of three slots, one left empty
   // per lot so neighbors differ; a left sign keeps the front-left slot clear.
   const right = rng() < 0.6
   const slots = [
-    [0.22, 0.24],
-    [0.72, 0.22],
+    [0.3, 0.3],
+    [0.68, 0.3],
     [0.24, 0.62],
   ] as const
   const skip = right ? Math.floor(rng() * slots.length) : 2
   for (const [k, [u, v]] of slots.entries()) {
     if (k === skip) continue
     const pos = at(u + (rng() - 0.5) * 0.08, v + (rng() - 0.5) * 0.08)
-    prop(p, pos.col, pos.row, top, family, rng)
+    prop(p, pos.col, pos.row, z, family, rng)
   }
   const sp = at(right ? 0.74 : 0.3, 0.86 - rng() * 0.06)
-  forSaleSign(p, sp.col, sp.row, top, pick(rng, s.accents))
+  forSaleSign(p, sp.col, sp.row, z, pick(rng, s.accents))
+  // At night a small spotlight lights the board and a warm patch of the bed around it.
+  const lights = p.lights
+  if (!lights) return
+  soft(lights, disc(sp.col, sp.row, 0.32, z + 0.002, p.t, 20), NIGHT.lamp, 0.55)
+  soft(lights, rect(bed.col0, bed.row0, bed.col1, bed.row1, z + 0.001, p.t), NIGHT.lamp, 0.16)
+  lights.poly(signFace(sp.col, sp.row, z, p.t)).fill({ color: 0xfff6e0, alpha: 0.85 })
+}
+
+/** The front face of the "for sale" board (for its night light). */
+function signFace(sc: number, sr: number, z: number, t: number): number[] {
+  const r = sr + 0.0225
+  return projectPoly(
+    [
+      { col: sc - 0.1, row: r, z: z + 0.21 },
+      { col: sc + 0.1, row: r, z: z + 0.21 },
+      { col: sc + 0.1, row: r, z: z + 0.09 },
+      { col: sc - 0.1, row: r, z: z + 0.09 },
+    ],
+    t,
+  )
 }
 
 /** Surface detail on the plot: mowing stripes, gravel specks, or paving joints. */
@@ -147,7 +195,7 @@ function plotSurface(p: Paint, l: Lot, z: number, family: Family, ground: number
     for (let i = 0; i < weeds; i++) {
       const c = l.col0 + 0.06 + rng() * (w - 0.12)
       const r = l.row0 + 0.06 + rng() * (d - 0.12)
-      blob(p, c, r, z + 0.02, 0.03 + rng() * 0.015, mix(p.style.trees[0]!, p.style.park, 0.4))
+      bush(p, c, r, z, 0.045 + rng() * 0.02, mix(p.style.trees[0]!, 0xb5c25a, 0.35))
     }
     return
   }
@@ -237,14 +285,14 @@ function prop(p: Paint, col: number, row: number, z: number, family: Family, rng
         { col0: col - 0.09, row0: row - 0.09, col1: col + 0.09, row1: row + 0.09, z0: z, z1: z + 0.07 },
         0x94a3b8,
       )
-      blob(p, col, row, z + 0.15, 0.11, pick(rng, s.trees))
+      bush(p, col, row, z + 0.07, 0.13, pick(rng, s.trees))
       return
     }
     case 'glass': {
       // A slim young tree or a pair of shrubs.
       if (rng() < 0.6) return tree(p, col, row, z, 0.09 + rng() * 0.05, pick(rng, s.trees), rng() < 0.4)
-      blob(p, col - 0.03, row, z + 0.035, 0.035, pick(rng, s.trees))
-      blob(p, col + 0.035, row + 0.01, z + 0.03, 0.03, pick(rng, s.trees))
+      bush(p, col - 0.03, row, z, 0.07, pick(rng, s.trees))
+      bush(p, col + 0.035, row + 0.02, z, 0.06, pick(rng, s.trees))
       return
     }
   }

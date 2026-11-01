@@ -6,7 +6,6 @@ import {
   NIGHT,
   beacon,
   bench,
-  blob,
   box,
   cone,
   cylinder,
@@ -16,9 +15,9 @@ import {
   mix,
   shadow,
   soft,
-  tree,
   type Paint,
 } from './paint.ts'
+import { blob, tree } from './flora.ts'
 
 /**
  * Small 3D scenes on the lots of the non-property side tiles: a station for each railroad, a

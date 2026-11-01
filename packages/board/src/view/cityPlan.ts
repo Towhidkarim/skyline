@@ -184,7 +184,7 @@ function stationSpot(s: Station): { col: number; row: number } {
   return { col: c.col + dir.col * off, row: c.row + dir.row * off }
 }
 
-/** Sparse houses, trees and small parks between the ring and the loop. */
+/** Houses, groves and small parks between the ring and the loop. */
 function planBelt(rng: () => number): BeltItem[] {
   const items: BeltItem[] = []
   const lo = INNER.lo + LOOP_INSET + PLINTH_GAP
@@ -206,7 +206,8 @@ function planBelt(rng: () => number): BeltItem[] {
           // A house, centered in the slot, one or two floors.
           const m = (w - 0.55) / 2
           items.push({ kind: 'house', lot: onSide(side, a0 + m, a0 + w - m, 0.14, 0.54, GROUND_Z), seed })
-        } else if (r < 0.7) {
+        } else {
+          // Every other slot is a grove (Visual polish, D73): the lawn reads as planted.
           items.push({
             kind: 'trees',
             lot: onSide(side, a0 + 0.06, a0 + w - 0.06, 0.1, 0.58, GROUND_Z),

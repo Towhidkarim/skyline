@@ -8,14 +8,15 @@ import {
   box,
   faces,
   flat,
+  hash3,
   light,
   lightsAt,
   mix,
   nightTint,
   soft,
-  tree,
   type Paint,
 } from '../art/paint.ts'
+import { bush, gardenLight, tree } from '../art/flora.ts'
 import { BOARD_STYLE } from '../art/style.ts'
 import { drawTrack } from '../art/train.ts'
 import { project } from '../geometry/project.ts'
@@ -272,15 +273,15 @@ function stripTrees(layer: (key: number) => Paint, plan: CityPlan): void {
     { at: (pl.col1 + hi - BALLAST) / 2, alongCol: false },
   ]
   for (const side of sides)
-    for (let a = pl.col0 + 0.15; a < pl.col1 - 0.1; a += 0.22) {
-      if (rng() < 0.3) continue
+    for (let a = pl.col0 + 0.12; a < pl.col1 - 0.08; a += 0.15) {
+      if (rng() < 0.15) continue
       const along = a + (rng() - 0.5) * 0.06
-      const across = side.at + (rng() - 0.5) * 0.05
+      const across = side.at + (rng() - 0.5) * 0.06
       const col = side.alongCol ? along : across
       const row = side.alongCol ? across : along
-      const size = 0.08 + rng() * 0.04
       const color = pick(rng, BOARD_STYLE.trees)
-      tree(layer(col + row), col, row, GROUND_Z, size, color, rng() < 0.3)
+      if (rng() < 0.3) bush(layer(col + row), col, row, GROUND_Z, 0.08 + rng() * 0.04, color)
+      else tree(layer(col + row), col, row, GROUND_Z, 0.1 + rng() * 0.05, color, rng() < 0.25)
     }
 }
 
@@ -294,15 +295,28 @@ function drawBelt(p: Paint, item: BeltItem): void {
     flat(p, lot.col0 - 0.05, lot.row0 - 0.05, lot.col1 + 0.05, lot.row1 + 0.05, lot.z + 0.003, s.park)
     house(p, lot, rng, { floors: 1 + Math.floor(rng() * 2) })
   } else {
-    const spots = Array.from({ length: 3 }, () => ({
-      col: lot.col0 + 0.12 + rng() * (lot.col1 - lot.col0 - 0.24),
-      row: lot.row0 + 0.12 + rng() * (lot.row1 - lot.row0 - 0.24),
-      size: 0.12 + rng() * 0.06,
-      pine: rng() < 0.25,
-      color: pick(rng, s.trees),
-    }))
+    // A grove: trees on a jittered grid with bushes between, drawn back to front.
+    const step = 0.17
+    const spots: { col: number; row: number; size: number; pine: boolean; color: number; bush: boolean }[] =
+      []
+    for (let c = lot.col0 + 0.1; c < lot.col1 - 0.06; c += step)
+      for (let r = lot.row0 + 0.1; r < lot.row1 - 0.06; r += step) {
+        if (rng() < 0.12) continue
+        spots.push({
+          col: c + (rng() - 0.5) * step * 0.6,
+          row: r + (rng() - 0.5) * step * 0.6,
+          size: 0.12 + rng() * 0.08,
+          pine: rng() < 0.22,
+          color: pick(rng, s.trees),
+          bush: rng() < 0.3,
+        })
+      }
+    // One or two garden lights in the gaps keep the grove readable at night.
+    const glow = spots.filter((t, i) => t.bush && hash3(t.col, t.row, i) < 0.5).slice(0, 2)
     for (const t of spots.toSorted((a, b) => a.col + a.row - (b.col + b.row)))
-      tree(p, t.col, t.row, lot.z, t.size, t.color, t.pine)
+      if (glow.includes(t)) gardenLight(p, t.col, t.row, lot.z)
+      else if (t.bush) bush(p, t.col, t.row, lot.z, t.size * 0.7, t.color)
+      else tree(p, t.col, t.row, lot.z, t.size, t.color, t.pine)
   }
 }
 

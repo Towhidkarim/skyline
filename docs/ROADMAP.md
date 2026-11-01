@@ -268,6 +268,20 @@ Seamless play on phones, portrait first. The developer pulled this ahead of the 
 
 Acceptance: a full game against bots and an online game are playable one-handed on a 390×844 and a 360×780 screen in portrait, and on a phone held sideways, with nothing clipped or overlapping and no page scroll; desktop is unchanged.
 
+## Milestone 15: Visual polish (started 2026-11-02, DECISIONS.md D73)
+
+The developer's goal: a city as rich as their AI reference image (lush groves, lit greenery, rooftop detail, warm light), better by day, at dusk and at night, without costing frames. Static art is drawn once; per-frame work stays near zero.
+
+Acceptance: trees read as layered clusters in several species, with bushes and hedges; lawns hold groves, not single dots; roofs carry detail; night greenery stays readable; day and dusk gain motion and depth; no new per-frame cost beyond a few position writes; `pnpm check` passes; screenshots compared at day, dusk and night.
+
+1. **Vegetation kit (done):** `art/flora.ts`, lobed crowns in three crisp tones plus specks, tiered pines, columns, the odd autumn or lime tree, bushes, hedges, soft round ground shadows. Every outer-belt slot that was empty is a grove; denser strip trees; garden lights in groves.
+2. **Rooftops (done):** roof gardens, solar panels, billboards that glow at night, air handlers with fans, a roof membrane inset. Picked by hash, so city layouts do not change.
+3. **Day and dusk motion (done):** drifting cloud shadows (`view/clouds.ts`), off with City life and still under reduced motion.
+4. **For-sale lots (done, D74):** planter beds with greenery and a lit sign at night.
+5. **Next:** storefront and facade detail (awnings, shop signs, lit lobbies), plaza and street life (lit fountains, kiosks, people), a stronger night facade wash.
+6. **Later (developer, 2026-11-02):** table dressing (coins, dice, cards around the board).
+7. **Check:** fps on a real phone with battery saver on and off; if the static city is too heavy there, bake it to a texture on low-end devices.
+
 ## Cross-cutting risks and how to retire them early
 
 | Risk | Retire by |
