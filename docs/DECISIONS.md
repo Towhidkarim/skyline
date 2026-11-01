@@ -595,3 +595,9 @@ The deal and flip of a property card hitched a little on desktop and more on pho
 - **Fallback:** if the fetch or decode fails, that track falls back to an audio element. A download manager such as IDM can take over a script's fetch of an mp3 and hand the page an empty 204 (seen on the dev machine), and music with a notification beats no music.
 - Trade-offs: mono and a 16 kHz top end on phones (under game sounds, through phone speakers); about 20-30 MB of memory per playing track.
 - Not yet verified on a real phone that the notification is gone (the dev browser cannot fetch mp3 files past IDM).
+
+## D72. App icon from a generated image instead of code (2026-11-02)
+
+- **Why:** the code-drawn block (D64) looked plain next to the game; the developer generated a night skyline icon with Gemini and preferred it.
+- **How:** the source is kept in `tools/assets/icon/source.jpg`; the favicon, PWA and Apple icons are committed PNGs in `apps/web/public/icons/` (crops and sizes in `docs/ASSETS.md`). The favicon is a PNG now (32 px, plus the 192 px icon for high-density tabs); `favicon.svg`, `src/pwa/icon.ts` and the Vite icon plugin are gone. The maskable icon uses the full image (the block's corners would leave the 80% safe circle in the tighter crop); the others zoom in. The favicon and the "any" icons are squircles with transparent corners (tabs, desktop installs show them as they are); the Apple and maskable icons stay full-bleed squares, since iOS fills transparency with black and Android crops to its own shape.
+- This supersedes the icon part of D64 and the "prefer code-generated art" default for this one asset, with the source and terms recorded like the generated music.
