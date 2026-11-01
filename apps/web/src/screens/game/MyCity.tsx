@@ -246,12 +246,7 @@ function SetSection({
   const rent = (i: number) => rentFor(s, i, 7)
   const lo = Math.min(...levels)
   const hi = Math.max(...levels)
-  const houseLine =
-    hi >= HOTEL && lo >= HOTEL
-      ? 'Hotels'
-      : lo === hi
-        ? `${lo} ${lo === 1 ? 'house' : 'houses'} each`
-        : `${lo}–${hi} houses`
+  const houseLine = hi >= HOTEL && lo >= HOTEL ? 'Hotels' : lo === hi ? `${lo} each` : `${lo}–${hi}`
   const showRows = !fan || rows
 
   return (
@@ -281,8 +276,8 @@ function SetSection({
       </div>
 
       {fan && (
-        <div className="mt-3 mb-2.5 flex items-center">
-          <div className="flex shrink-0">
+        <div className="mt-3 mb-2.5 flex flex-col gap-3">
+          <div className="flex justify-center">
             {f.spaces.map((i, k) => {
               const mortgaged = p.mortgaged[i]
               const tilt = f.spaces.length === 2 ? (k === 0 ? -2.5 : 2.5) : (k - 1) * 3.5
@@ -326,20 +321,19 @@ function SetSection({
               )
             })}
           </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 pl-3 text-xs text-ink-muted">
-            <span>{houseLine}</span>
-            <span>
-              Rent now <strong className="text-gold tabular-nums">{range(f.spaces.map(rent))}</strong>
-            </span>
+          {/* Set stats as a strip under the fan: the cards keep their width on phones. */}
+          <dl className="grid auto-cols-fr grid-flow-col gap-1.5">
+            <SetStat label={hi >= HOTEL && lo >= HOTEL ? 'Built' : 'Houses'} value={houseLine} />
+            <SetStat label="Rent now" value={range(f.spaces.map(rent))} tone="text-gold" />
             {build && build.actions.length > 0 && (
-              <span>
-                Next level{' '}
-                <strong className="text-ink tabular-nums">
-                  {range(f.spaces.map((i) => rentAt(i, p.houses[i]! + 1)))}
-                </strong>
-              </span>
+              <SetStat
+                label="Next level"
+                value={range(f.spaces.map((i) => rentAt(i, p.houses[i]! + 1)))}
+                tone="text-teal"
+                up
+              />
             )}
-          </div>
+          </dl>
         </div>
       )}
 
@@ -474,6 +468,29 @@ function SetSection({
 }
 
 /** "₵a–₵b", or one amount when they match. */
+/** One cell of a set's stat strip: a small label over a bold value that wraps rather than truncates. */
+function SetStat({
+  label,
+  value,
+  tone = 'text-ink',
+  up = false,
+}: {
+  label: string
+  value: string
+  tone?: string
+  up?: boolean
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-black/20 px-2.5 py-2">
+      <dt className="text-[10px] font-extrabold tracking-wider text-ink-muted uppercase">{label}</dt>
+      <dd className={`flex items-center gap-1 font-display text-sm font-bold tabular-nums ${tone}`}>
+        {up && <span aria-hidden="true">↑</span>}
+        <span className="break-words">{value}</span>
+      </dd>
+    </div>
+  )
+}
+
 function range(vals: number[]): string {
   const lo = Math.min(...vals)
   const hi = Math.max(...vals)

@@ -296,7 +296,7 @@ function Sheet({
             >
               <DeedSwatch color={familyColor(a.space)} />
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-extrabold">{title}</span>
+                <span className="text-sm leading-snug font-extrabold text-balance">{title}</span>
                 <span className="text-xs text-ink-muted">{note}</span>
               </div>
               <TealBtn disabled={!live} onClick={() => turn.act(a)}>
@@ -545,6 +545,19 @@ function detail(s: GameState, a: Raise): string {
   return `${familyName(a.space)} · ${after} (now ${fmtMoney(rentFor(s, a.space, 7))})`
 }
 
+/** One loan term: a small label over a bold value (and an optional muted note beside it). */
+function LoanTerm({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-black/20 px-2.5 py-2">
+      <dt className="text-[10px] font-extrabold tracking-wider text-ink-muted uppercase">{label}</dt>
+      <dd className="flex flex-wrap items-baseline gap-x-1 font-display text-sm font-bold text-ink tabular-nums">
+        {value}
+        {note && <span className="text-[11px] font-semibold text-ink-muted">{note}</span>}
+      </dd>
+    </div>
+  )
+}
+
 /** Second Wind: the bank covers the whole bill now; half of every income pays it back. */
 function LoanOffer({
   loan,
@@ -563,28 +576,35 @@ function LoanOffer({
       </div>
     )
   return (
-    <div className="mx-6 mb-2 flex items-center gap-3.5 rounded-2xl border border-gold/50 bg-gold/8 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-      <span
-        aria-hidden="true"
-        className="flex size-11 shrink-0 animate-pop items-center justify-center rounded-full bg-coin font-display text-xl font-bold text-[#5a3a00] shadow-[inset_0_-3px_0_var(--color-coin-dark)]"
-      >
-        ₵
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-display text-base font-bold text-gold">
-          Second Wind: borrow {fmtMoney(loan.amount)}
+    // Stacked so the terms keep the full card width on phones: header, three term chips, button.
+    <div className="mx-6 mb-2 flex flex-col gap-3 rounded-2xl border border-gold/50 bg-gold/8 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-11 shrink-0 animate-pop items-center justify-center rounded-full bg-coin font-display text-xl font-bold text-[#5a3a00] shadow-[inset_0_-3px_0_var(--color-coin-dark)]"
+        >
+          ₵
         </span>
-        <span className="text-xs leading-snug text-ink-muted">
-          The bank pays the bill and you keep every building. Repay {fmtMoney(loan.owed)} (
-          {Math.round(loan.rate * 100)}% interest) from half of what you earn.
-        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[10px] font-extrabold tracking-widest text-gold/80 uppercase">
+            Second Wind
+          </span>
+          <span className="font-display text-lg leading-tight font-bold text-gold">
+            Borrow {fmtMoney(loan.amount)}, keep every building
+          </span>
+        </div>
       </div>
+      <dl className="grid grid-cols-3 gap-1.5">
+        <LoanTerm label="Bank pays" value={fmtMoney(loan.amount)} />
+        <LoanTerm label="You repay" value={fmtMoney(loan.owed)} note={`+${Math.round(loan.rate * 100)}%`} />
+        <LoanTerm label="Paid from" value="½ income" />
+      </dl>
       <Btn
         autofocus
         kind="primary"
         disabled={!live}
         onClick={onTake}
-        className="h-12 shrink-0 rounded-2xl px-4.5"
+        className="h-12 w-full rounded-2xl px-4.5"
       >
         Take the loan
       </Btn>
