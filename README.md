@@ -1,14 +1,30 @@
-# 🏙️ Skyline (working title)
+<p align="center">
+  <img src="apps/web/public/icons/icon-192.png" alt="Skyline app icon: a night skyline in a rounded square" width="112" height="112">
+</p>
 
-### A juicy, lightweight, Monopoly-style board game for your browser, set in a living isometric city, with bots that actually play well.
-
-**Roll. Buy. Build. Scheme. Bankrupt your friends.** All in a glowing little city where the trains run, the windows light up at dusk, and every dice roll *feels* good.
-
-### ▶️ [Play it now at skyline.towhidkarim.dev](https://skyline.towhidkarim.dev/)
+<h1 align="center">Skyline</h1>
 
 <p align="center">
-  <img src="docs/screenshots/readme-game.png" alt="The Skyline board at dusk: a city of lit windows around the ring, with four tokens and the turn banner" width="860">
+  <strong>A calm, living-city board game for the browser and your phone.</strong><br>
+  Roll, buy, build and trade around an isometric city where trains run and windows light up at dusk.<br>
+  Play against bots with their own personalities, or with friends online.
 </p>
+
+<p align="center">
+  <a href="https://skyline.towhidkarim.dev/"><strong>Play now</strong></a> &nbsp;·&nbsp; <a href="https://skyline.towhidkarim.dev/how-to-play">How to play</a> &nbsp;·&nbsp; <a href="#run-it-locally">Run it locally</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3b82f6" alt="MIT license"></a> <img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript"> <img src="https://img.shields.io/badge/PixiJS-v8-e72264" alt="PixiJS v8"> <img src="https://img.shields.io/badge/multiplayer-online-8b5cf6" alt="Online multiplayer"> <img src="https://img.shields.io/badge/mobile-installable-22c55e" alt="Installable on phones">
+</p>
+
+<br>
+
+<p align="center">
+  <img src="docs/screenshots/readme-city-night.webp" alt="The Skyline city at night: lit towers in the middle, trains and cars moving on the rails and roads around them, the board's colored districts on the ring" width="900">
+</p>
+
+### Run it locally
 
 ```
 pnpm install
