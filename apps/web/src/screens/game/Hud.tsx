@@ -68,7 +68,12 @@ export function Hud({
         {p.players.map((pl, seat) => {
           const info = store.setup.seats[seat]!
           const color = cssHex(info.color)
-          const { active, low, tag, botTag, tagInk, label } = seatStatus(snap, store, seat, solo)
+          const { active, low, tag, botTag, tagInk, label, next, you, dim } = seatStatus(
+            snap,
+            store,
+            seat,
+            solo,
+          )
           return (
             <div
               key={pl.id}
@@ -76,18 +81,14 @@ export function Hud({
               // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a fieldset would bring form semantics and layout quirks
               role="group"
               aria-label={label}
-              className={`pointer-events-auto relative flex w-60 min-w-0 shrink flex-col gap-1.5 rounded-2xl border-[1.5px] px-3 py-2.5 transition-[background-color,box-shadow,opacity,translate] duration-300 ease-spring ${
+              className={`pointer-events-auto relative flex w-60 min-w-0 shrink flex-col gap-1.5 rounded-2xl border-[1.5px] px-3 py-2.5 transition-[background-color,border-color,box-shadow,opacity,translate] duration-300 ease-spring ${
                 pl.bankrupt
                   ? 'border-line bg-panel opacity-40'
                   : active
-                    ? '-translate-y-0.5 border-accent bg-panel-2'
-                    : `bg-panel ${low ? 'border-alert/45' : 'border-line'}`
+                    ? '-translate-y-1 bg-panel-2'
+                    : `bg-panel ${low ? 'border-alert/45' : 'border-line'} ${dim ? 'opacity-70 hover:opacity-100' : ''}`
               }`}
-              style={{
-                boxShadow: active
-                  ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 4px rgba(245,181,74,0.14), 0 10px 24px rgba(2,6,16,0.5)'
-                  : 'inset 0 1px 0 rgba(255,255,255,0.06)',
-              }}
+              style={activeCard(active, color, 'rgba(2,6,16,0.5)')}
             >
               <div className="@container min-w-0">
                 <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2.5 @max-[150px]:grid-cols-[auto_1fr]">
@@ -95,14 +96,17 @@ export function Hud({
                     <TokenAvatar
                       color={color}
                       piece={info.piece}
-                      halo={active ? 'rgba(245,181,74,0.6)' : 'rgba(255,255,255,0.1)'}
+                      halo={active ? `${color}aa` : 'rgba(255,255,255,0.1)'}
                     />
                   </span>
                   <span
                     className="flex min-w-0 flex-col @max-[150px]:col-start-2 @max-[150px]:row-start-1"
                     title={`${pl.name}${tag || botTag ? `, ${(tag || botTag).toLowerCase()}` : ''}${pl.jailCards > 0 ? `, ${pl.jailCards} Lockup ${pl.jailCards === 1 ? 'card' : 'cards'}` : ''}`}
                   >
-                    <span className="truncate font-display text-sm leading-tight font-bold">{pl.name}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-display text-sm leading-tight font-bold">{pl.name}</span>
+                      {you && <YouBadge />}
+                    </span>
                     {/* A status wins the slot; otherwise a bot shows its personality. A chip too narrow for the
                         whole line drops it (the container query) rather than cutting words short. */}
                     <span
@@ -114,7 +118,8 @@ export function Hud({
                           : undefined
                       }
                     >
-                      <span className="truncate">{tag || botTag || ' '}</span>
+                      {/* The turn tab under the card says PLAYING; this line keeps the bot's personality. */}
+                      <span className="truncate">{(active ? '' : tag) || botTag || ' '}</span>
                       {pl.jailCards > 0 && (
                         <span className="shrink-0 text-gold" title="Get out of the Lockup free">
                           +{pl.jailCards} card
@@ -132,12 +137,7 @@ export function Hud({
               {pl.loan > 0 && !pl.bankrupt && (
                 <LoanBar loan={pl.loan} total={pl.loanTotal} onRepay={repayOf(snap, store, seat)} />
               )}
-              {active && (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-4 -bottom-px h-[3px] rounded-[3px] bg-accent shadow-[0_0_12px_rgba(245,181,74,0.7)]"
-                />
-              )}
+              <TurnTab active={active} next={next} tag={tag} color={color} />
               {barks[pl.id] && (
                 // A bot's line, popping out under its card (decoration: the log says what happened).
                 <span
@@ -229,13 +229,19 @@ function seatStatus(snap: Snapshot, store: GameStore, seat: number, solo: boolea
   const pl = p.players[seat]!
   const info = store.setup.seats[seat]!
   const active = p.current === seat && !p.over
+  const me = store.meId()
+  // Who plays after this turn: the next seat still in the game.
+  let after = p.current
+  do after = (after + 1) % p.players.length
+  while (p.players[after]!.bankrupt && after !== p.current)
+  const next = !p.over && !active && after === seat && !pl.bankrupt
   const low = !pl.bankrupt && pl.cash < LOW_CASH
   const tag = pl.bankrupt
     ? 'BANKRUPT'
     : snap.thinking === pl.id
       ? 'THINKING'
       : active
-        ? solo && info.kind === 'human'
+        ? pl.id === me || (solo && info.kind === 'human')
           ? 'YOUR TURN'
           : 'PLAYING'
         : pl.inJail
@@ -255,7 +261,64 @@ function seatStatus(snap: Snapshot, store: GameStore, seat: number, solo: boolea
   ]
     .filter(Boolean)
     .join(', ')
-  return { active, low, tag, botTag, tagInk, label }
+  // Online names are real names: our own card says YOU (locally the one human is already "You").
+  const you = pl.id === me && pl.name.toLowerCase() !== 'you'
+  // While someone plays, the other cards step back so the active one stands out.
+  const dim = !p.over && !active
+  return { active, low, tag, botTag, tagInk, label, next, you, dim }
+}
+
+/** The active card wears its player's color (D76): border, glow, lift. */
+function activeCard(active: boolean, color: string, drop: string | null) {
+  if (!active) return { boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)' }
+  return {
+    borderColor: color,
+    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 3px ${color}40, 0 0 22px ${color}55${drop ? `, 0 10px 24px ${drop}` : ''}`,
+  }
+}
+
+/**
+ * A tab hanging from the bottom edge of a seat card: PLAYING (or YOUR TURN, THINKING) in the
+ * player's color on the active card, a quiet NEXT on the card that plays after it.
+ */
+function TurnTab({
+  active,
+  next,
+  tag,
+  color,
+  compact = false,
+}: {
+  active: boolean
+  next: boolean
+  tag: string
+  color: string
+  compact?: boolean
+}) {
+  if (!active && !next) return null
+  const size = compact ? 'px-1.5 text-[8.5px]' : 'px-2 text-[9.5px]'
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full py-px leading-[1.35] font-extrabold tracking-widest whitespace-nowrap uppercase ${size} ${
+        active ? 'text-[#0b1426]' : 'border border-line bg-panel text-ink-muted'
+      }`}
+      style={active ? { background: color, boxShadow: `0 0 12px ${color}aa` } : undefined}
+    >
+      {active && (
+        <span className="size-0 border-y-[3.5px] border-l-[5px] border-y-transparent border-l-current" />
+      )}
+      {active ? tag : 'Next'}
+    </span>
+  )
+}
+
+/** Marks our own seat when names are real (online). */
+function YouBadge() {
+  return (
+    <span className="shrink-0 rounded-full bg-ink px-1.5 text-[9px] leading-[1.45] font-extrabold tracking-wider text-table">
+      YOU
+    </span>
+  )
 }
 
 /**
@@ -347,7 +410,7 @@ export function CompactHud({
       {p.players.map((pl, seat) => {
         const info = store.setup.seats[seat]!
         const color = cssHex(info.color)
-        const { active, low, tag, label } = seatStatus(snap, store, seat, solo)
+        const { active, low, tag, label, next, you, dim } = seatStatus(snap, store, seat, solo)
         const bark = barks[pl.id]
         return (
           <button
@@ -356,18 +419,14 @@ export function CompactHud({
             data-seat-card={pl.id}
             aria-label={label}
             onClick={() => onPlayer(seat)}
-            className={`pointer-events-auto relative flex min-w-0 flex-col gap-1 rounded-xl text-left active:scale-[0.97] ${landscape ? 'max-w-48 flex-1' : ''} border-[1.5px] px-2 py-1.5 transition-[background-color,box-shadow,opacity] duration-300 ease-spring ${
+            className={`pointer-events-auto relative flex min-w-0 flex-col gap-1 rounded-xl text-left active:scale-[0.97] ${landscape ? 'max-w-48 flex-1' : ''} border-[1.5px] px-2 pt-1.5 pb-2 transition-[background-color,border-color,box-shadow,opacity] duration-300 ease-spring ${
               pl.bankrupt
                 ? 'border-line bg-panel opacity-40'
                 : active
-                  ? 'border-accent bg-panel-2'
-                  : `bg-panel ${low ? 'border-alert/45' : 'border-line'}`
+                  ? 'bg-panel-2'
+                  : `bg-panel ${low ? 'border-alert/45' : 'border-line'} ${dim ? 'opacity-75' : ''}`
             }`}
-            style={{
-              boxShadow: active
-                ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 3px rgba(245,181,74,0.14)'
-                : 'inset 0 1px 0 rgba(255,255,255,0.06)',
-            }}
+            style={activeCard(active, color, null)}
           >
             {/* Avatar and name on top, the cash on its own line below: a narrow chip never clips the cash. */}
             <div className="flex min-w-0 items-center gap-1.5">
@@ -375,10 +434,11 @@ export function CompactHud({
                 color={color}
                 piece={info.piece}
                 size={18}
-                halo={active ? 'rgba(245,181,74,0.6)' : 'rgba(255,255,255,0.1)'}
+                halo={active ? `${color}aa` : 'rgba(255,255,255,0.1)'}
                 className={tag === 'THINKING' ? 'animate-pulse' : ''}
               />
               <span className="truncate text-[11px] leading-tight font-bold">{pl.name}</span>
+              {you && <YouBadge />}
             </div>
             <TickingMoney
               value={pl.cash}
@@ -388,12 +448,7 @@ export function CompactHud({
             {pl.loan > 0 && !pl.bankrupt && (
               <LoanBar loan={pl.loan} total={pl.loanTotal} onRepay={null} compact />
             )}
-            {active && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-3 -bottom-px h-[3px] rounded-[3px] bg-accent shadow-[0_0_12px_rgba(245,181,74,0.7)]"
-              />
-            )}
+            <TurnTab active={active} next={next} tag={tag} color={color} compact />
             {bark && (
               // Edge chips anchor their line to the screen side so it never runs off the screen.
               <span

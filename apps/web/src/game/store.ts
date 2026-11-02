@@ -18,7 +18,7 @@ export type BoardPort = Pick<
   Board,
   'setPlayers' | 'sync' | 'play' | 'setTuning' | 'skipAnimations' | 'punch'
 > &
-  Partial<Pick<Board, 'throwDice'>>
+  Partial<Pick<Board, 'throwDice' | 'rollCall' | 'screenOf'>>
 import {
   PERSONALITIES,
   botRng,
@@ -182,6 +182,9 @@ export class GameStore {
   private readonly eventListeners = new Set<(e: GameEvent) => void>()
   private readonly appliedListeners = new Set<(e: GameEvent) => void>()
   private readonly actions: SavedGame['actions'] = []
+  /** The roll call has run (or was not wanted) for this game; `intro` while it plays. */
+  private introduced = false
+  private intro = false
   private readonly queue: GameEvent[] = []
   private pumping = false
   private skipping = false
@@ -301,9 +304,43 @@ export class GameStore {
     this.board = board
     if (!board) return
     board.setTuning(this.tuning(this.settings.speed))
-    board.setPlayers(this.setup.seats.map((s) => ({ id: s.id, color: s.color, piece: s.piece })))
+    const me = this.meId()
+    board.setPlayers(
+      this.setup.seats.map((s) => ({
+        id: s.id,
+        color: s.color,
+        piece: s.piece,
+        name: s.name,
+        you: s.id === me,
+      })),
+    )
     board.sync(boardSnapshot(this.snap.state))
+    // A new game opens with the roll call (D76): each piece hops with its name before play starts.
+    const s = this.snap.state
+    if (!this.introduced && board.rollCall && !this.settings.instant && freshGame(s)) {
+      this.introduced = true
+      this.intro = true
+      const order = s.players.map((_, i) => s.players[(s.current + i) % s.players.length]!.id)
+      void board.rollCall(order).then(() => {
+        this.intro = false
+        this.scheduleBot()
+      })
+      return
+    }
+    this.introduced = true
     this.scheduleBot()
+  }
+
+  /** Where a space is on screen (viewport px), or null without a board. */
+  spaceOnScreen(space: number): { x: number; y: number } | null {
+    return this.board?.screenOf?.(space) ?? null
+  }
+
+  /** The player this screen plays as: our seat online, the one human seat locally, else null. */
+  meId(): string | null {
+    if (this.online) return this.online.me
+    const humans = this.setup.seats.filter((x) => x.kind === 'human')
+    return humans.length === 1 ? humans[0]!.id : null
   }
 
   // ---- actions ------------------------------------------------------------
@@ -311,6 +348,8 @@ export class GameStore {
   /** Applies an action for a player. Returns an error message if the engine rejects it. */
   dispatch(playerId: string, action: Action): string | null {
     if (this.disposed) return 'game closed'
+    // Acting during the roll call cuts it short.
+    if (this.intro) this.board?.skipAnimations()
     if (this.online) {
       // Checked here for an instant answer; the room checks again and has the last word.
       if (playerId !== this.online.me) return 'not your seat'
@@ -423,6 +462,7 @@ export class GameStore {
 
   /** Jump to the end of all pending animations (skip). */
   skip(): void {
+    if (this.intro) this.board?.skipAnimations()
     if (!this.pumping) return
     this.skipping = true
     this.board?.skipAnimations()
@@ -713,7 +753,7 @@ export class GameStore {
   }
 
   private scheduleBot(): void {
-    if (this.botTimer || this.disposed || this.pumping || !this.board) return
+    if (this.botTimer || this.disposed || this.pumping || this.intro || !this.board) return
     const seat = this.botToAct(this.snap.state)
     if (seat === null) {
       // No bot to play: a human must act (or the game is over), so fast-forward ends here.
@@ -769,5 +809,11 @@ export function boardSnapshot(s: GameState): BoardSnapshot {
     houses: s.houses,
     mortgaged: s.mortgaged,
     bankrupt: s.players.filter((p) => p.bankrupt).map((p) => p.id),
+    current: s.phase === 'gameOver' ? null : s.players[s.current]!.id,
   }
+}
+
+/** No dice thrown yet (properties may be dealt already): the moment for the roll call. */
+function freshGame(s: GameState): boolean {
+  return s.turnCount === 0 && s.lastDice === null && s.players.every((p) => p.position === 0)
 }

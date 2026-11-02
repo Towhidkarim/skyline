@@ -379,6 +379,18 @@ export const CATALOG = {
   },
 
   // Property
+  'prop.forSale': {
+    label: 'For sale',
+    group: 'Property',
+    bus: 'sfx',
+    when: 'A piece stops on a lot nobody owns (the sign swings)',
+    pick: 0,
+    variants: [
+      { name: 'Sign tap + ping', layers: [...wood(17, 0, 0.16, 80), glass(24, 70, 0.09, 420)] },
+      { name: 'Two dings', layers: [glass(19, 0, 0.1, 380), glass(24, 90, 0.09, 420)] },
+      OFF,
+    ],
+  },
   'prop.buy': {
     label: 'Buy',
     group: 'Property',
@@ -721,6 +733,18 @@ export const CATALOG = {
     variants: [
       { name: 'Two chimes', layers: [chime(7, 0, 0.16, 700), chime(12, 110, 0.16, 800)] },
       { name: 'Glass', layers: [glass(19, 0, 0.16, 600)] },
+      OFF,
+    ],
+  },
+  'turn.pass': {
+    label: 'Turn passes',
+    group: 'Game',
+    bus: 'ui',
+    when: "Another player's turn starts",
+    pick: 0,
+    variants: [
+      { name: 'Soft tick', layers: wood(14, 0, 0.14, 90) },
+      { name: 'Low chime', layers: [chime(0, 0, 0.07, 380)] },
       OFF,
     ],
   },

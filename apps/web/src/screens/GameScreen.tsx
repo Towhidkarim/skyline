@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { SPACES } from '@skyline/engine'
-import { defaultResolution, type BoardHandle } from '@skyline/board'
+import { defaultResolution, type BoardHandle, type OddsMark } from '@skyline/board'
 import { BoardCanvas } from '../BoardCanvas.tsx'
 import { useLayout } from '../layout.ts'
 import { connectSound } from '../audio/connect.ts'
+import { watchTurnTitle } from './game/turnTitle.ts'
 import { CityAmbience } from '../audio/ambience.ts'
 import { sound } from '../audio/engine.ts'
 import { MusicPlayer } from '../audio/music.ts'
@@ -152,6 +153,7 @@ export function GameScreen({
   const musicRef = useRef<MusicPlayer | null>(null)
   useEffect(() => {
     const audio = connectSound(store)
+    const offTitle = watchTurnTitle(store)
     const city = new CityAmbience(sound)
     city.start()
     ambience.current = city
@@ -173,6 +175,7 @@ export function GameScreen({
     handle?.board.setListeners({ select: (i) => pickRef.current(i) || setSelected(i), beat: audio.beat })
     return () => {
       audio.disconnect()
+      offTitle()
       city.stop()
       music.stop()
       musicRef.current = null
@@ -225,14 +228,21 @@ export function GameScreen({
     if (!handle) return
     if (!rolling) return handle.board.setOdds(null)
     handle.board.setOdds(
-      landingOdds(state, turn.actorSeat)
-        .filter((o) => o.rent > 0)
-        .map((o) => ({
-          space: o.space,
-          p: o.p,
-          label: fmtMoney(o.rent),
-          color: store.setup.seats[o.owner!]!.color,
-        })),
+      // Rent you would pay (a badge in the owner's color) and lots you could buy (a price tag), D79.
+      landingOdds(state, turn.actorSeat).flatMap((o): OddsMark[] =>
+        o.rent > 0
+          ? [
+              {
+                space: o.space,
+                p: o.p,
+                label: `−${fmtMoney(o.rent)}`,
+                color: store.setup.seats[o.owner!]!.color,
+              },
+            ]
+          : o.price > 0
+            ? [{ space: o.space, p: o.p, label: fmtMoney(o.price), color: null, kind: 'price' }]
+            : [],
+      ),
     )
   }, [handle, rolling, state, turn.actorSeat, store])
   // The Speed die's Bus or triples: tag every shown destination on the board, the hovered one strongest.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { buyAdvice } from '../../game/advice.ts'
 import { AdviceLines } from './AdviceLines.tsx'
 import { SPACES, type Action } from '@skyline/engine'
@@ -67,6 +67,17 @@ export function BuyMoment({
   if (live && fin) setFin(null)
 
   const flyRef = useRef<HTMLDivElement>(null)
+  // The deed is dealt from the tile the piece stopped on (D77), so the eye follows it from the
+  // board to the panel. Measured after layout, before paint; without a board the deal keeps its default start.
+  const liveSpace = live?.space ?? null
+  useLayoutEffect(() => {
+    const el = flyRef.current
+    const at = liveSpace === null ? null : store.spaceOnScreen(liveSpace)
+    if (!el || !at) return
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--deal-x', `${Math.round(at.x - (r.left + r.width / 2))}px`)
+    el.style.setProperty('--deal-y', `${Math.round(at.y - (r.top + r.height / 2))}px`)
+  }, [liveSpace, store])
   const dimRef = useRef<HTMLDivElement>(null)
   const { compact } = useLayout()
   const kind = fin?.kind
@@ -121,7 +132,7 @@ export function BuyMoment({
         setOwned={set.mine - 1}
         moment
         variant={compact ? 'compact' : 'full'}
-        dealFrom={{ x: -120, y: 80 }}
+        dealFrom="inherit"
         stamp={fin?.kind === 'sold' ? 'SOLD' : undefined}
       />
     </div>

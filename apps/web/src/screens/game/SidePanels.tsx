@@ -71,13 +71,16 @@ export function LeftColumn({
   const hint = viewer !== null && !snap.busy ? hintFor(snap.state, viewer) : null
   const roller = snap.presented.players[snap.presented.current]!
   const rollerName = soloHuman(store) && store.seatKind(roller.id) === 'human' ? 'You' : roller.name
+  const rollerColor = cssHex(store.setup.seats[snap.presented.current]!.color)
   const doubles = snap.dice !== null && snap.dice[0] === snap.dice[1]
   return (
     <div className="pointer-events-none absolute top-32 left-5 flex w-72 flex-col gap-3">
       {snap.dice && (
         // With a deed open, a short window gives the deed the room.
+        // The tray wears the roller's color (D76), so the roll reads as theirs.
         <Panel
-          className={`flex items-center gap-3.5 p-3.5 ${selected !== null ? '[@media(max-height:899px)]:hidden' : ''}`}
+          className={`flex items-center gap-3.5 p-3.5 transition-[border-color] duration-300 ${selected !== null ? '[@media(max-height:899px)]:hidden' : ''}`}
+          style={{ borderColor: `${rollerColor}99` }}
         >
           <DiceTray
             dice={snap.dice}
@@ -89,9 +92,8 @@ export function LeftColumn({
           />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <Eyebrow className="truncate text-ink-muted">
-              {snap.diceLanding
-                ? `${rollerName} ${rollerName === 'You' ? 'are' : 'is'} rolling…`
-                : `${rollerName} rolled`}
+              <span style={{ color: rollerColor }}>{rollerName}</span>
+              {snap.diceLanding ? ` ${rollerName === 'You' ? 'are' : 'is'} rolling…` : ' rolled'}
             </Eyebrow>
             {/* While 3D dice are on the board the result is not shown here yet. */}
             {snap.diceLanding ? (
@@ -167,8 +169,12 @@ function HintCard({ hint, onCity }: { hint: Hint; onCity: () => void }) {
 /** Phones: the dice tray, riding in the floating row above the dock (the 3D dice fly into it). */
 export function CompactDice({ snap, store }: { snap: Snapshot; store: GameStore }) {
   if (!snap.dice) return null
+  const rollerColor = cssHex(store.setup.seats[snap.presented.current]!.color)
   return (
-    <Panel className="pointer-events-auto flex shrink-0 items-center self-end p-2">
+    <Panel
+      className="pointer-events-auto flex shrink-0 items-center self-end p-2 transition-[border-color] duration-300"
+      style={{ borderColor: `${rollerColor}99` }}
+    >
       <DiceTray
         dice={snap.dice}
         speedFace={snap.speedFace}

@@ -619,8 +619,44 @@ The deal and flip of a property card hitched a little on desktop and more on pho
 - **Night:** a small spotlight in the lot's lights layer: a warm pool around the sign, a faint warm wash over the bed, and the board face lit. Empty lots now invite at night instead of going dark.
 - **Tried and dropped:** faint paving joints across the side tiles, like sidewalk slabs. The developer found the grid texture unattractive; the tiles stay plain.
 
+
 ## D75. The rulebook page at /how-to-play (2026-11-02)
 
 - A full rulebook as a book of 16 chapters (goal, board, setup, turn, spaces, sets and building, stations and utilities, the Lockup, cards, money trouble, auctions, trading, winning, twists, online, controls) on cream card-stock pages over the lamplight table, with a contents list that follows the reader (chips on phones). Deep links: `/how-to-play#twists`.
 - Same pathname switch as D44 (`Route` gains `rules`); the screen is `React.lazy` so the main bundle does not grow. Linked from the setup screen and from the in-game help ("Read the full rulebook", new tab, so the game is not lost). Worker and service worker need no change (SPA fallback).
 - Pictures are code-drawn SVG built from the engine's data (`screens/rulebook/art.tsx`): the 40-space ring, a street growing to a hotel with its rents, the district strip, dice, Speed die faces, a loan bar. Mode numbers, rents, card text and shortcuts are read from `PRESETS`, `SPACES`, the card decks and `shortcuts.ts`, so the book follows the rules instead of repeating them. Prose rules are written by hand and must be updated with the engine (a new twist needs its chapter entry).
+
+## D76. Whose turn it is, and whose piece is whose (2026-11-02)
+
+New players could not tell whose turn it was from the top card alone: the highlight was the same amber for everyone (amber also marks money and the main button), the PLAYING tag hid itself on desktop-width cards, and the board showed nothing beyond a faint 2.5% breathing. Every cue now uses the player's own color and repeats in several places, with the strongest one on the board where players look.
+
+- **Board (`view/turnMarker.ts`):** a soft pool of the player's color with one thin rim under the active piece (day and night; kept quiet, the chevron leads) with a small ripple when the turn starts; a bobbing chevron above the piece; a name tag (cream pill, colored rim) that pops out for 2.2 s at turn start, then tucks away. Our own piece carries a small YOU tag all game. Hovering or selecting a tile shows the names of the pieces on it. Tags are drawn in screen space (crisp at any zoom), the ring in world space. The board takes `name` and `you` in `BoardPlayer` and `current` in `BoardSnapshot` (so the marker is right after a load or reconnect, when no `TURN_STARTED` plays).
+- **Roll call:** when a game opens before any dice are thrown, the camera leans in on GO and each piece hops in turn order with its name tag (about 2.5 s). Bots wait for it; any action or skip cuts it short; off with reduced motion or instant speed.
+- **Seat cards:** the active card takes its player's color for border, glow and avatar ring, lifts, and hangs a tab in that color (PLAYING, YOUR TURN or THINKING) from its bottom edge; the tab never hides. The other cards dim (back to full on hover); the next seat shows a quiet NEXT tab. Online our own card says YOU.
+- **Handoff:** a soft `turn.pass` tick when another player's turn starts, next to the `turn.yours` chime (which now only rings for this screen's own seat online). The camera already follows the new piece. When our turn starts in a background tab the title blinks "Your turn" until we come back (`turnTitle.ts`).
+- **Small echoes:** the dice tray's rim and "Nova rolled" take the roller's color; the dock's "Nova is playing" line and its dot take the actor's color.
+- No voice lines: a spoken cue repeats every turn and cannot say players' names online. A voice may come later for rare big moments, behind its own switch.
+
+## D77. Arrival beat on for-sale lots; the bill waits for the landing (2026-11-02)
+
+- **Arrival beat:** when a piece comes to rest on a lot nobody owns, the board holds a short beat (`ARRIVE_MS`, 340 ms at 1x, scaled by game speed) before the move resolves: the tile flashes (no extra hop: the landing already bumps it), its "for sale" board swings about its foot (an underdamped spring, about 12°), and a soft `prop.forSale` cue plays (sign tap and ping; variants and Off on the sound board). With reduced motion only the flash plays. Bots get the same beat, so their landings read too. No toast, no extra click, no camera zoom: buying comes up almost every turn early on.
+- **Sign apart:** the for-sale board is drawn into its own Graphics (`Paint.sign`, which reports the board's foot), so it can rotate without redrawing the lot. Its night light stays in the lights layer and does not swing; the small angle keeps that from showing.
+- **Deed from the tile:** the buy panel's deed is dealt from the tile on screen (`Board.screenOf`, measured in a layout effect into `--deal-x`/`--deal-y`; `dealFrom="inherit"` on the card), so the eye follows it from the board to the panel.
+- **Raise-money panel:** it opened from the authoritative state, which knows the debt as soon as the dice are thrown, so the bill showed while the dice were still settling. It now opens on the debt moment (which waits for the board to finish playing, like the buy panel) and then stays open while actions animate until the debt is gone.
+
+## D78. Property tiles: district header, side stripe, wash and chamfer (2026-11-02)
+
+- **Why:** the developer found the property tiles bland: one pale slab for every tile, a thin band whose dark pattern marks read as punched holes, and plain side faces along the rim.
+- **Header (`header` in `view/tiles.ts`):** the raised curb in the group color keeps its place along the city edge, with a lit far lip and a shaded near lip like a painted kerb. The pattern marks are raised ornaments in a contrasting tone of the same color (pale on dark and mid colors, deeper on light ones such as yellow), with a small drop edge: dots for the first four groups, diamonds for the rest, one to four of them as before, so groups still never depend on color alone.
+- **Side stripe:** the long side face the camera sees (outer edge on the front sides, inner edge on the back ones) is painted in the district color under a slab-colored lip, so the rim reads as a ring of districts. On the back sides it joins the header into one solid kerb.
+- **Wash and chamfer:** a property's top takes 7% of its group color, so a street reads as one; every side tile gets a light chamfer along its two front top edges, so tiles read as chunky slabs.
+- All drawn once into the tile's base Graphics (no per-frame cost). Close-ups for checks: `tools/dev/street-shot.sh <name> [space] [zoom]` (day and night, Orca).
+- **Stations and utilities** get the same kerb in a neutral slate (`serviceHeader`) and a slate side stripe: a little track (steel rails over sleepers) for stations, an amber bolt for the electric company, a blue pool for the water works.
+- Next, if wanted: a faint glow on the headers at night.
+
+## D79. Landing odds show prices as tags and rent as badges (2026-11-02)
+
+- **Why:** tiles carry no text (BOARD.md), so a price showed only in a tile's card, one tile at a time; on phones (no hover) players hardly saw prices at all. Permanent labels stay out; the price shows where the question comes up: before your roll, on the lots you can reach.
+- Before your roll (landing odds on), every reachable lot nobody owns gets a **price tag**: a cream shop tag with a punched hole at its pointed end, hanging at a slight angle, the price in money green, the same family as the buy panel's "For sale". Rent you would owe stays a **badge** in the owner's color, now a raised pill reading `−₵250`: a minus and the owner's color say "you pay them". Tag versus badge, cream versus owner color, green versus white: the two never read alike, in grayscale too.
+- `landingOdds` reports `price` (unit-tested); `OddsMark.kind = 'price'`; reachable for-sale tiles take the gold odds tint, rent tiles the owner's color as before.
+- Not now (offered, declined for the moment): a board-wide price view on a key or button, and a first-game hint for it.

@@ -44,7 +44,7 @@ export class CueMapper {
   event(e: GameEvent, speed = 1): Cue[] {
     switch (e.type) {
       case 'TURN_STARTED':
-        return this.isHuman(e.playerId) ? [{ sound: 'turn.yours' }] : []
+        return [{ sound: this.isHuman(e.playerId) ? 'turn.yours' : 'turn.pass' }]
       case 'DICE_ROLLED':
         if (this.dice3d()) return []
         return e.dice[0] === e.dice[1]
@@ -108,6 +108,8 @@ export class CueMapper {
         return [{ sound: 'move.liftoff' }]
       case 'own':
         return [{ sound: 'prop.buy' }]
+      case 'forSale':
+        return [{ sound: 'prop.forSale' }]
       case 'build': {
         const t = this.now()
         this.buildStreak = t - this.lastBuild < STREAK_MS ? this.buildStreak + 1 : 0

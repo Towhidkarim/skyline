@@ -75,7 +75,8 @@ export function CardStage({
   /** Fly in from `dealFrom` (px offset the deal starts at; default far left, like a side deck). */
   deal?: boolean
   flip?: boolean
-  dealFrom?: { x: number; y: number }
+  /** 'inherit': the caller sets `--deal-x` and `--deal-y` on an ancestor (measured after layout). */
+  dealFrom?: { x: number; y: number } | 'inherit'
   sway?: boolean
   tilt?: boolean
   radius?: number
@@ -167,16 +168,17 @@ export function CardStage({
   const dealStyle: CSSProperties = reduced
     ? { animation: 'fade-in 180ms ease-out backwards' }
     : deal
-      ? ({
+      ? {
           // `backwards` (not `both`): once finished, no animation (and no layer) is left behind.
           animation: `card-deal ${CARD_MS.deal}ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards`,
-          '--deal-x': `${dealFrom?.x ?? -360}px`,
-          '--deal-y': `${dealFrom?.y ?? 140}px`,
+          ...(dealFrom === 'inherit'
+            ? {}
+            : { '--deal-x': `${dealFrom?.x ?? -360}px`, '--deal-y': `${dealFrom?.y ?? 140}px` }),
           // One layer, rastered once, for the whole deal and flip: without the hint the browser
           // re-rasters the card as it scales up and again when the flip starts (D70). Dropped with
           // the 3D context once the card rests, so its text is rasterized crisp.
           ...(flipping ? { willChange: 'transform, opacity' } : {}),
-        } as CSSProperties)
+        }
       : {}
   const d3 = flipping ? ({ transformStyle: 'preserve-3d' } as const) : undefined
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PRESETS, createGame } from '@skyline/engine'
+import { PRESETS, SPACES, createGame } from '@skyline/engine'
 import { landingOdds } from './odds.ts'
 
 const players = [
@@ -33,6 +33,18 @@ describe('landingOdds', () => {
     expect(at(3).rent).toBeGreaterThan(0)
     expect(at(5)).toMatchObject({ owner: null, rent: 0 })
     expect(at(6)).toMatchObject({ owner: null, rent: 0 })
+  })
+
+  it('prices the lots nobody owns, not owned spaces or ones that cannot be bought', () => {
+    const s = createGame(players, 1, PRESETS.classic)
+    s.owner.fill(-1)
+    s.owner[3] = 1
+    const at = (space: number) => landingOdds(s, 0).find((o) => o.space === space)!
+    expect(at(5).price).toBe(SPACES[5]!.price) // a station
+    expect(at(6).price).toBe(SPACES[6]!.price)
+    expect(at(3).price).toBe(0) // owned: rent instead
+    expect(at(4).price).toBe(0) // tax
+    expect(at(7).price).toBe(0) // a card
   })
 
   it('is empty in jail', () => {

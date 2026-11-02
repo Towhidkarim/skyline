@@ -104,6 +104,11 @@ export class TileView {
   readonly lift = new Spring(0, 260, 18)
   hovered = false
   selected = false
+  /** The "for sale" board on an unowned lot, drawn apart so it can wobble (D77). */
+  private readonly sign = new Graphics()
+  private signAt: { x: number; y: number } | null = null
+  /** The sign's tilt in radians: an underdamped swing after a piece arrives. */
+  private readonly wobble = new Spring(0, 240, 6)
   /** 0..1 flash from path previews, decays each frame. */
   flash = 0
   /**
@@ -134,7 +139,7 @@ export class TileView {
     this.rim.alpha = 0
     this.oddsG.alpha = 0
     this.container.addChild(this.base, this.oddsG, this.decoG, this.rim)
-    this.tower.addChild(this.building, this.buildingLights, this.buildingBeacons)
+    this.tower.addChild(this.building, this.sign, this.buildingLights, this.buildingBeacons)
     if (this.fp.corner) {
       // Corner props keep to the back edges, behind the pieces standing on the corner.
       this.tower.zIndex = this.fp.col0 + this.fp.row0 + 0.6
@@ -224,10 +229,13 @@ export class TileView {
     const b = this.building.clear()
     const lights = this.buildingLights.clear()
     const beacons = this.buildingBeacons.clear()
+    this.sign.clear()
+    this.signAt = null
     if (this.family) {
+      const sign = { g: this.sign, at: (x: number, y: number) => (this.signAt = { x, y }) }
       // Unowned is the for-sale lot (-1); then owned (0), 1 to 4 houses, hotel (5).
       drawLot(
-        { g: b, lights, t, style: BOARD_STYLE, beacons },
+        { g: b, lights, t, style: BOARD_STYLE, beacons, sign },
         lotOf(fp),
         owner === null ? -1 : level,
         this.family,
@@ -263,6 +271,25 @@ export class TileView {
     this.building.y = -(this.drop?.z ?? 0) * zScale(t)
     this.buildingLights.y = this.building.y
     this.buildingBeacons.y = this.building.y
+    // The sign swings about its foot.
+    const at = this.signAt ?? { x: 0, y: 0 }
+    this.sign.pivot.set(at.x, at.y)
+    this.sign.position.set(at.x, at.y + this.building.y)
+    this.sign.rotation = this.wobble.value
+  }
+
+  /**
+   * A piece arrived on this lot while it is for sale (D77): the tile flashes and the "for sale"
+   * board swings, before the buy panel opens. No hop: the landing already bumped the tile.
+   */
+  greet(): void {
+    this.flash = 1
+    if (this.signAt) this.wobble.kick(3.4)
+  }
+
+  /** True when this tile shows a "for sale" board. */
+  get forSale(): boolean {
+    return this.signAt !== null
   }
 
   /**
@@ -296,7 +323,13 @@ export class TileView {
     this.drawDeco(t)
     const fp = this.fp
     const g = this.base.clear()
-    const top = fp.corner ? palette.cornerTop : palette.tileTop
+    // A property's top takes a faint wash of its district color, so a street reads as one (D78).
+    const group = this.groupColor
+    const top = fp.corner
+      ? palette.cornerTop
+      : group === null
+        ? palette.tileTop
+        : mix(palette.tileTop, group, 0.07)
     isoBox(
       g,
       {
@@ -310,6 +343,10 @@ export class TileView {
       { top, left: palette.tileLeft, right: palette.tileRight },
       t,
     )
+    if (!fp.corner) chamfer(g, fp, t)
+    const kind = SPACES[this.index]!.kind
+    if (group !== null) sideStripe(g, fp, group, t)
+    else if (kind === 'railroad' || kind === 'utility') sideStripe(g, fp, SLATE, t)
     drawIcon(g, this.index, fp, t)
 
     this.rim
@@ -326,6 +363,7 @@ export class TileView {
     this.lift.step(dtMs)
     this.container.y = -this.lift.value * zScale(t)
     this.tower.y = this.container.y
+    if (this.wobble.step(dtMs)) this.sign.rotation = this.wobble.value
 
     this.pulseClock += dtMs
     // The odds tint eases in and out.
@@ -434,33 +472,164 @@ function lotPad(g: Graphics, fp: Footprint, t: number): void {
   )
 }
 
+/** Height of a property's color header above the tile top. */
+const BAND = 0.03
+
+/**
+ * The district header (D78): a raised curb in the group color along the city edge, with a lit
+ * back lip and a shaded front lip like a painted kerb, and raised ornaments in a contrasting tone
+ * of the same color (dots for the first four groups, diamonds for the rest; one to four of them)
+ * so groups never depend on color alone, in grayscale too.
+ */
+function header(g: Graphics, fp: Footprint, group: number, t: number): void {
+  const color = groupColors[group]!
+  kerb(g, fp, color, t)
+  // Pale ornaments on dark and mid colors, deeper ones on light colors (yellow, sky).
+  const light = luma(color) > 0.62
+  const ink = light ? shade(color, 0.55) : mix(color, 0xffffff, 0.55)
+  const rim = light ? mix(color, 0xffffff, 0.4) : shade(color, 0.6)
+  const marks = (group % 4) + 1
+  for (let i = 0; i < marks; i++) {
+    const u = (i + 1) / (marks + 1)
+    const c = tilePoint(fp, u, 0.87)
+    // A small drop edge under each mark reads as raised, not punched in.
+    if (group < 4) {
+      g.poly(disc(c.col, c.row + 0.006, 0.042, BAND, t)).fill(rim)
+      g.poly(disc(c.col, c.row, 0.042, BAND, t)).fill(ink)
+    } else {
+      const diamond = (dz: number, r: number) =>
+        projectPoly(
+          [
+            [0, -r],
+            [r, 0],
+            [0, r],
+            [-r, 0],
+          ].map(([du, dv]) => ({ ...tilePoint(fp, u + du!, 0.87 + dv! * 1.4), z: BAND + dz })),
+          t,
+        )
+      g.poly(diamond(-0.004, 0.05)).fill(rim)
+      g.poly(diamond(0, 0.043)).fill(ink)
+    }
+  }
+}
+
+/** The raised kerb under a header: a lit far lip and a shaded near lip. */
+function kerb(g: Graphics, fp: Footprint, color: number, t: number): void {
+  isoBox(
+    g,
+    { ...uvRect(fp, 0.04, 0.77, 0.96, 0.97), z0: 0, z1: BAND },
+    { top: color, left: shade(color, 0.72), right: shade(color, 0.84) },
+    t,
+  )
+  g.poly(quadZ(fp, 0.04, 0.945, 0.96, 0.97, BAND, t)).fill(mix(color, 0xffffff, 0.35))
+  g.poly(quadZ(fp, 0.04, 0.77, 0.96, 0.785, BAND, t)).fill(shade(color, 0.86))
+}
+
+/** Stations and utilities: a neutral slate kerb, so they belong to the rim without a district. */
+const SLATE = 0x56627a
+
+/**
+ * The header of a station or utility (D78): the slate kerb with a little track for a station
+ * (steel rails over sleepers), an amber bolt for the electric company, a blue pool for the water
+ * works.
+ */
+function serviceHeader(g: Graphics, fp: Footprint, mark: 'rail' | 'bolt' | 'drop', t: number): void {
+  kerb(g, fp, SLATE, t)
+  const z = BAND + 0.0005
+  if (mark === 'rail') {
+    for (let u = 0.1; u < 0.92; u += 0.075) g.poly(quadZ(fp, u, 0.81, u + 0.03, 0.93, z, t)).fill(0x3a4458)
+    for (const v of [0.835, 0.895]) g.poly(quadZ(fp, 0.07, v, 0.93, v + 0.014, z + 0.0005, t)).fill(0xd6dde8)
+    return
+  }
+  // An icon in the middle, its v offsets stretched like the diamonds so it stays in proportion.
+  const at = (pts: readonly (readonly [number, number])[], r: number, dz = 0) =>
+    projectPoly(
+      pts.map(([du, dv]) => ({ ...tilePoint(fp, 0.5 + du * r, 0.87 + dv * r * 1.4), z: z + dz })),
+      t,
+    )
+  if (mark === 'bolt') {
+    const bolt = [
+      [0.25, -1],
+      [-0.55, 0.12],
+      [-0.02, 0.12],
+      [-0.25, 1],
+      [0.55, -0.12],
+      [0.02, -0.12],
+    ] as const
+    g.poly(at(bolt, 0.075, -0.004)).fill(0x7a5a12)
+    g.poly(at(bolt, 0.068)).fill(0xfbbf24)
+    for (const du of [-0.3, 0.3]) {
+      const c = tilePoint(fp, 0.5 + du, 0.87)
+      g.poly(disc(c.col, c.row, 0.02, z, t)).fill(0x8b97ad)
+    }
+    return
+  }
+  const c = tilePoint(fp, 0.5, 0.87)
+  g.poly(disc(c.col, c.row + 0.006, 0.07, z, t)).fill(0x2f4a7a)
+  g.poly(disc(c.col, c.row, 0.07, z, t)).fill(0x60a5fa)
+  g.poly(disc(c.col, c.row, 0.045, z + 0.0005, t)).fill(0x93c5fd)
+  g.poly(disc(c.col - 0.015, c.row - 0.015, 0.016, z + 0.001, t)).fill(0xe0f2fe)
+}
+
+/**
+ * The tile's long side face that the camera sees (the outer edge on the front sides, the inner
+ * edge on the back ones) gets a band of the district color under a slab-colored lip, so the rim of
+ * the board reads as a ring of districts (D78).
+ */
+function sideStripe(g: Graphics, fp: Footprint, color: number, t: number): void {
+  const zTop = -0.008
+  const zBot = -THICK + 0.01
+  const inset = 0.04
+  const pts =
+    fp.side === 0 || fp.side === 2
+      ? [fp.col0 + GAP + inset, fp.col1 - GAP - inset].map((col) => ({ col, row: fp.row1 - GAP }))
+      : [fp.row0 + GAP + inset, fp.row1 - GAP - inset].map((row) => ({ col: fp.col1 - GAP, row }))
+  const face = fp.side === 0 || fp.side === 2 ? 0.8 : 0.66
+  g.poly(
+    projectPoly(
+      [
+        { ...pts[0]!, z: zTop },
+        { ...pts[1]!, z: zTop },
+        { ...pts[1]!, z: zBot },
+        { ...pts[0]!, z: zBot },
+      ],
+      t,
+    ),
+  ).fill(shade(color, face))
+}
+
+/**
+ * A light chamfer along the top's two front edges, so a tile reads as a chunky slab, not a flat
+ * sheet (D78).
+ */
+function chamfer(g: Graphics, fp: Footprint, t: number): void {
+  const c0 = fp.col0 + GAP
+  const r0 = fp.row0 + GAP
+  const c1 = fp.col1 - GAP
+  const r1 = fp.row1 - GAP
+  const w = 0.016
+  const lit = { color: 0xffffff, alpha: 0.5 }
+  g.poly(rect(c0, r1 - w, c1, r1, 0.0005, t)).fill(lit)
+  g.poly(rect(c1 - w, r0, c1, r1, 0.0005, t)).fill({ color: 0xffffff, alpha: 0.32 })
+}
+
+/** Relative luminance-ish brightness, 0..1. */
+function luma(color: number): number {
+  return (0.2126 * ((color >> 16) & 0xff) + 0.7152 * ((color >> 8) & 0xff) + 0.0722 * (color & 0xff)) / 255
+}
+
 function drawIcon(g: Graphics, index: number, fp: Footprint, t: number): void {
   const space = SPACES[index]!
   if (!fp.corner && space.kind !== 'property' && specialOf(index)) {
     lotPad(g, fp, t)
+    if (space.kind === 'railroad') serviceHeader(g, fp, 'rail', t)
+    if (space.kind === 'utility') serviceHeader(g, fp, specialOf(index) === 'electric' ? 'bolt' : 'drop', t)
     return
   }
   switch (space.kind) {
     case 'property': {
       lotPad(g, fp, t)
-      // The group band is a raised curb in the group color along the city edge.
-      const color = groupColors[space.group]!
-      const BAND = 0.024
-      isoBox(
-        g,
-        { ...uvRect(fp, 0.04, 0.78, 0.96, 0.97), z0: 0, z1: BAND },
-        { top: color, left: shade(color, 0.72), right: shade(color, 0.84) },
-        t,
-      )
-      // Pattern marks so groups never depend on color alone.
-      const marks = (space.group % 4) + 1
-      for (let i = 0; i < marks; i++) {
-        const u = (i + 1) / (marks + 1)
-        const c = tilePoint(fp, u, 0.875)
-        // Dark and large enough to tell groups apart in grayscale (Milestone 6 acceptance).
-        if (space.group < 4) g.poly(disc(c.col, c.row, 0.055, BAND, t)).fill(shade(color, 0.38))
-        else g.poly(quadZ(fp, u - 0.05, 0.82, u + 0.05, 0.93, BAND, t)).fill(shade(color, 0.38))
-      }
+      header(g, fp, space.group, t)
       break
     }
     case 'go':

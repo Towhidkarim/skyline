@@ -37,7 +37,7 @@ Back to front, all code-drawn from the footprint:
 6. Decor: owner marker (small colored flag or roof tint chip), mortgage overlay (desaturate plus hatch).
 7. Interaction overlays: hover rim, selection glow, target pulse, path preview.
 
-No text on tiles. Names, prices, rents are React tooltips and cards.
+No text on tiles. Names, prices, rents are React tooltips and cards. Exception by moment, not by tile: before your roll, the landing-odds overlay floats price tags and rent badges above the lots you can reach (DECISIONS.md D79).
 
 ## 4. Development grows the skyline
 

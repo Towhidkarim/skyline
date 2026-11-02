@@ -1,4 +1,4 @@
-import { projectPoly } from '../geometry/project.ts'
+import { project, projectPoly } from '../geometry/project.ts'
 import { cosmeticRng, disc, rect } from '../view/draw.ts'
 import { FLOOR, glassTower, house, inset, office, pick, townhouses, walkup, type Lot } from './buildings.ts'
 import {
@@ -147,7 +147,12 @@ function forSale(p: Paint, lot: Lot, rng: () => number, family: Family, tint: nu
     prop(p, pos.col, pos.row, z, family, rng)
   }
   const sp = at(right ? 0.74 : 0.3, 0.86 - rng() * 0.06)
-  forSaleSign(p, sp.col, sp.row, z, pick(rng, s.accents))
+  const header = pick(rng, s.accents)
+  if (p.sign) {
+    forSaleSign({ ...p, g: p.sign.g }, sp.col, sp.row, z, header)
+    const foot = project({ col: sp.col, row: sp.row, z }, p.t)
+    p.sign.at(foot.x, foot.y)
+  } else forSaleSign(p, sp.col, sp.row, z, header)
   // At night a small spotlight lights the board and a warm patch of the bed around it.
   const lights = p.lights
   if (!lights) return

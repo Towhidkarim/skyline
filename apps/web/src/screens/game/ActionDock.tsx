@@ -120,7 +120,10 @@ export function ActionDock({
               </span>
             ) : (
               <div className="flex h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] bg-panel-2 px-3 text-xs text-ink-muted">
-                <span className="size-2 shrink-0 animate-pulse rounded-full bg-ink-muted" />
+                <span
+                  className="size-2 shrink-0 animate-pulse rounded-full bg-ink-muted"
+                  style={actorDot(store, turn)}
+                />
                 <span className="truncate">
                   {turn.moment === 'move'
                     ? 'Pick where to go'
@@ -132,7 +135,7 @@ export function ActionDock({
                           : snap.busy
                             ? 'Playing…'
                             : 'Waiting…'
-                        : `${snap.presented.players[turn.actorSeat]?.name} is playing`}
+                        : playing(snap, store, turn)}
                 </span>
                 {!turn.human && !snap.fastForward && store.canFastForward ? (
                   <button
@@ -212,7 +215,7 @@ export function ActionDock({
           </span>
         ) : (
           <div className="flex h-[66px] min-w-64 items-center justify-center gap-3 rounded-[18px] bg-panel-2 px-6 text-sm text-ink-muted">
-            <span className="size-2 animate-pulse rounded-full bg-ink-muted" />
+            <span className="size-2 animate-pulse rounded-full bg-ink-muted" style={actorDot(store, turn)} />
             {snap.fastForward
               ? 'Skipping to your turn…'
               : turn.human
@@ -221,7 +224,7 @@ export function ActionDock({
                   : snap.busy
                     ? 'Playing…'
                     : 'Waiting…'
-                : `${snap.presented.players[turn.actorSeat]?.name} is playing`}
+                : playing(snap, store, turn)}
             {!turn.human && !snap.fastForward && store.canFastForward ? (
               <button
                 type="button"
@@ -413,5 +416,22 @@ function TileButton({
         </span>
       )}
     </button>
+  )
+}
+
+/** The waiting dot takes the color of whoever is playing (D76). */
+function actorDot(store: GameStore, turn: TurnView) {
+  return turn.human ? undefined : { background: cssHex(store.setup.seats[turn.actorSeat]!.color) }
+}
+
+/** "Nova is playing", the name in Nova's color. */
+function playing(snap: Snapshot, store: GameStore, turn: TurnView): ReactNode {
+  return (
+    <>
+      <span className="font-bold" style={{ color: cssHex(store.setup.seats[turn.actorSeat]!.color) }}>
+        {snap.presented.players[turn.actorSeat]?.name}
+      </span>{' '}
+      is playing
+    </>
   )
 }

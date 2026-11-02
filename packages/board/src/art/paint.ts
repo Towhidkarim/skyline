@@ -29,6 +29,11 @@ export interface Paint {
    * the buildings drawn after it (in front of it) in the same layer.
    */
   mark?: () => void
+  /**
+   * Where a for-sale lot draws its "for sale" board instead of `g`, so the board can wobble on
+   * its own (D77); `at` gets the board's foot in the same coordinates.
+   */
+  sign?: { g: Graphics; at: (x: number, y: number) => void }
 }
 
 /**

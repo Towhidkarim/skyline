@@ -168,8 +168,14 @@ export function DebtPanel({
   onTrade: (() => void) | null
 }) {
   const s = snap.state
-  // Stay open while an action animates (turn.moment goes null then), until the debt is really gone.
-  const owing = turn.human && s.debts[0]?.debtor === turn.actorSeat
+  const debtor = turn.human && s.debts[0]?.debtor === turn.actorSeat
+  // Opens on the debt moment, which waits for the board to play the landing (D77): the engine knows
+  // the debt as soon as the dice are thrown, but the bill must not show before the piece arrives.
+  // Then it stays open while actions animate (turn.moment goes null then) until the debt is gone.
+  const [open, setOpen] = useState(false)
+  if (debtor && !open && turn.moment === 'debt') setOpen(true)
+  if (!debtor && open) setOpen(false)
+  const owing = debtor && (open || turn.moment === 'debt')
   // The drawn card is remembered (adjusting state while rendering, no effect), for a card bill.
   const [drawn, setDrawn] = useState<DrawnCard | null>(null)
   if (snap.card && (snap.card.deck !== drawn?.deck || snap.card.cardId !== drawn.cardId))

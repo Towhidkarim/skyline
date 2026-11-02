@@ -17,7 +17,8 @@ export function connectSound(
   engine: SoundEngine = sound,
 ): { beat: (b: BoardBeat) => void; disconnect: () => void } {
   const cues = new CueMapper(
-    (id) => store.seatKind(id) === 'human',
+    // Online only our own seat chimes; another person's turn ticks like a bot's.
+    (id) => store.canAct(id),
     undefined,
     () => store.settings.dice3d,
   )

@@ -37,10 +37,15 @@ describe('CueMapper', () => {
     expect(doubles).toEqual(['set.pulse', 'dice.doubles'])
   })
 
-  it('chimes only when a human turn starts', () => {
+  it('chimes when a human turn starts and ticks softly when the turn passes to others', () => {
     const m = new CueMapper(human)
     expect(m.event({ type: 'TURN_STARTED', playerId: 'p1', round: 1 })).toEqual([{ sound: 'turn.yours' }])
-    expect(m.event({ type: 'TURN_STARTED', playerId: 'p2', round: 1 })).toEqual([])
+    expect(m.event({ type: 'TURN_STARTED', playerId: 'p2', round: 1 })).toEqual([{ sound: 'turn.pass' }])
+  })
+
+  it('greets a stop on a for-sale lot', () => {
+    const m = new CueMapper(human)
+    expect(m.beat({ kind: 'forSale', space: 1 })).toEqual([{ sound: 'prop.forSale' }])
   })
 
   it('raises the pitch through a building spree and resets after a pause', () => {

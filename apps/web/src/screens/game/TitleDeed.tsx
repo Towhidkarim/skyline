@@ -48,7 +48,7 @@ export interface DeedCardProps {
   /** Deal in from the deck and flip over, with sway and tilt (for card moments). */
   moment?: boolean
   /** Where a dealt card starts, in px from its place. */
-  dealFrom?: { x: number; y: number }
+  dealFrom?: { x: number; y: number } | 'inherit'
   /** Gold outline (compact cards in a picker). */
   selected?: boolean
   /** Overrides the game's sky for the hero window. */

@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, type Application, type FederatedPointerEvent } from 'pixi.js'
-import { GROUPS, type GameEvent } from '@skyline/engine'
+import { GROUPS, isOwnable, type GameEvent } from '@skyline/engine'
 import { Animator, ease } from './anim/animator.ts'
 import { DEFAULT_THROW_AREA, DiceView, type DiceThrowOptions, type DiceThrowResult } from './dice/view.ts'
 import { project, unproject, type Pos } from './geometry/project.ts'
@@ -17,6 +17,7 @@ import { OddsLabels, type OddsMark } from './view/odds.ts'
 import { ScoutPin } from './view/pin.ts'
 import { TileView } from './view/tiles.ts'
 import { TokenView } from './view/token.ts'
+import { TurnMarker, type MarkerAnchor } from './view/turnMarker.ts'
 import { CloudShadows } from './view/clouds.ts'
 
 /** Real-time milliseconds for a full day-to-night (or back) fade. */
@@ -59,6 +60,8 @@ export type BoardBeat =
   | { kind: 'liftoff'; piece: PieceKind }
   | { kind: 'build'; space: number; level: number }
   | { kind: 'own'; space: number }
+  /** A piece came to rest on a lot nobody owns: the lot greets it before the buy panel (D77). */
+  | { kind: 'forSale'; space: number }
   | { kind: 'pulse'; space: number; step: number }
   | { kind: 'punch'; strength: number }
 
@@ -76,6 +79,9 @@ const MORPH_MS = 750
 /** How long a finger rests on a tile before it opens (a tap opens it on release). */
 const HOLD_MS = 380
 
+/** The arrival beat on a for-sale lot, between the landing and the buy panel (D77). */
+const ARRIVE_MS = 340
+
 /** The beat a bankrupt piece holds before it lifts away (sounds wait for it too). */
 export const BANKRUPT_HOLD_MS = 440
 
@@ -83,7 +89,14 @@ export interface BoardPlayer {
   id: string
   color: number
   piece: PieceKind
+  /** Shown on the piece's name tag (D76). */
+  name?: string
+  /** The player on this screen: a YOU tag rides above the piece. */
+  you?: boolean
 }
+
+/** How tall each piece stands, in world px, so tags float just above it. */
+const PIECE_HEAD: Record<PieceKind, number> = { pawn: 54, balloon: 82, taxi: 30, bus: 36, drone: 24 }
 
 /** The slice of game state the board shows; the shell maps engine state into this. */
 export interface BoardSnapshot {
@@ -93,6 +106,8 @@ export interface BoardSnapshot {
   houses: readonly number[]
   mortgaged: readonly boolean[]
   bankrupt: readonly string[]
+  /** Whose turn it is (null when the game is over); leaves the marker alone when absent. */
+  current?: string | null
 }
 
 export class Board {
@@ -112,6 +127,10 @@ export class Board {
   private readonly oddsLabels = new OddsLabels()
   /** The Speed die Scout's target marker (D62). */
   private readonly scoutPin = new ScoutPin()
+  /** Whose turn it is and whose piece is whose (D76). */
+  private readonly marker = new TurnMarker()
+  /** Pieces whose name tag shows while the pointer is on their tile (reused each frame). */
+  private readonly peek = new Set<string>()
   private readonly debugLayer = new Container()
   private readonly debugLines = new Graphics()
   /** Screen-space layer above the world (crisp text such as the dice total). */
@@ -187,6 +206,7 @@ export class Board {
       this.city.base,
       this.tileLayer,
       this.shadowLayer,
+      this.marker.ground,
       this.actorLayer,
       this.clouds.container,
       this.oddsLabels.container,
@@ -206,6 +226,7 @@ export class Board {
     this.debugLayer.visible = false
     this.debugLayer.eventMode = 'none'
     app.stage.addChild(this.vignette, this.world, this.overlay)
+    this.overlay.addChildAt(this.marker.container, 0)
     this.vignette.eventMode = 'none'
 
     app.renderer.background.color = mix(palette.tableDay, palette.table, this.night)
@@ -360,6 +381,7 @@ export class Board {
     const token = this.tokens.get(id)
     if (!token) return
     this.tokens.delete(id)
+    this.marker.remove(id)
     token.destroy()
     this.layoutTile(token.space)
   }
@@ -370,6 +392,45 @@ export class Board {
     for (const id of this.tokens.keys()) this.removeToken(id)
     this.colors.clear()
     for (const p of players) this.addToken(p.id, p.color, 0, p.piece)
+    this.marker.setPlayers(
+      players.map((p) => ({ id: p.id, color: p.color, name: p.name ?? '', you: p.you ?? false })),
+    )
+  }
+
+  /** Marks whose turn it is: the ring, the chevron, the breathing piece. `announce` pops the name tag. */
+  setActive(id: string | null, announce = false): void {
+    for (const [tid, t] of this.tokens) t.active = tid === id && !this.tuning.reducedMotion
+    this.marker.setActive(id, announce)
+  }
+
+  /**
+   * Game start (D76): the camera leans in on GO and each piece hops in turn with its name tag,
+   * so everyone learns whose piece is whose. Skippable like any animation.
+   */
+  async rollCall(ids: readonly string[]): Promise<void> {
+    if (this.tuning.reducedMotion) {
+      for (const id of ids) this.marker.announce(id)
+      return
+    }
+    this.animator.speed = 1
+    this.focus(0, 2.4)
+    await this.animator.wait(450)
+    for (const id of ids) {
+      const token = this.tokens.get(id)
+      if (!token) continue
+      this.marker.announce(id, 560)
+      token.squash.kick(-9)
+      const rest = token.restZ
+      void this.animator
+        .tween(380, (p) => (token.pos.z = rest + 0.6 * Math.sin(Math.PI * p)))
+        .then(() => {
+          token.pos.z = rest
+          token.squash.kick(7)
+        })
+      await this.animator.wait(520)
+    }
+    await this.animator.wait(380)
+    if (!this.camera.isFollowing) this.camera.recenter()
   }
 
   /** Swap a player's piece (taxi, drone, ...). Purely cosmetic. */
@@ -384,6 +445,7 @@ export class Board {
   skipAnimations(): void {
     this.animator.skip()
     this.dice.finish()
+    this.marker.hush()
   }
 
   /** Snaps the whole board to a game state with no animation (load, reconnect, skip). */
@@ -405,6 +467,7 @@ export class Board {
       token.pos.z = token.restZ
     }
     for (const id of snap.bankrupt) this.removeToken(id)
+    if (snap.current !== undefined) this.setActive(snap.current)
     for (let i = 0; i < 40; i++) this.layoutTile(i, true)
   }
 
@@ -427,7 +490,7 @@ export class Board {
         return this.playJump(event.playerId, event.to)
       case 'TURN_STARTED': {
         const token = this.tokens.get(event.playerId)
-        for (const [id, t] of this.tokens) t.active = id === event.playerId && !this.tuning.reducedMotion
+        this.setActive(event.playerId, true)
         if (token && this.tuning.follow)
           this.camera.setFollow(() => this.worldPos(token), this.juice.camera.followZoom * 0.83)
         token?.squash.kick(5)
@@ -454,6 +517,9 @@ export class Board {
         return this.animator.wait(180)
       case 'BANKRUPT':
         return this.playBankrupt(event.playerId)
+      case 'GAME_OVER':
+        this.setActive(null)
+        return
       default:
         return
     }
@@ -688,6 +754,7 @@ export class Board {
     this.animator.finishAll()
     this.dice.destroy()
     this.particles.destroy()
+    this.marker.destroy()
   }
 
   // ---- choreography ------------------------------------------------------
@@ -717,6 +784,27 @@ export class Board {
       this.approach = null
       this.mover = null
     }
+    await this.arrive(path[path.length - 1]!)
+  }
+
+  /**
+   * A piece came to rest on a lot nobody owns (D77): the tile hops and flashes, its "for sale"
+   * board swings and a cue sounds, a short beat that ties the landing to the buy panel after it.
+   */
+  private async arrive(space: number): Promise<void> {
+    if (!isOwnable(space) || this.owners[space] !== null) return
+    const tile = this.tiles[space]!
+    if (this.tuning.reducedMotion) tile.flash = 1
+    else tile.greet()
+    this.emit({ kind: 'forSale', space })
+    await this.animator.wait(ARRIVE_MS)
+  }
+
+  /** A space's tile top in client (viewport) CSS px, for DOM effects that start from the board. */
+  screenOf(space: number): { x: number; y: number } {
+    const p = this.world.toGlobal(this.tileTop(space))
+    const r = this.app.canvas.getBoundingClientRect()
+    return { x: r.left + p.x, y: r.top + p.y }
   }
 
   /** The rent warning for landing on `space`: someone else's unmortgaged property, stronger with buildings. */
@@ -842,6 +930,7 @@ export class Board {
     this.scoutPin.update(real, (i) => this.tileTop(i), this.tuning.reducedMotion)
     this.dice.update(dt)
     this.camera.update(real)
+    this.updateMarker(real)
     this.city.life.update(dt, this.viewRect())
     this.clouds.update(dt, this.tuning.reducedMotion)
     if (this.night !== this.nightTarget) {
@@ -855,6 +944,21 @@ export class Board {
       const p = this.world.toGlobal(project({ ...c, z: this.tiles[this.hovered]!.lift.value }, t))
       this.listeners.hoverPosition(p.x, p.y)
     }
+  }
+
+  private readonly anchorOf = (id: string): MarkerAnchor | null => {
+    const token = this.tokens.get(id)
+    if (!token || token.pawn.alpha < 0.5) return null
+    const top = token.pawn.position
+    const head = this.world.toGlobal({ x: top.x, y: top.y - PIECE_HEAD[token.kind] })
+    return { ground: token.shadow.position, head }
+  }
+
+  private updateMarker(realMs: number): void {
+    this.peek.clear()
+    const spot = this.hovered ?? this.selected
+    if (spot !== null) for (const t of this.tokens.values()) if (t.space === spot) this.peek.add(t.id)
+    this.marker.update(realMs, this.anchorOf, this.peek, this.tuning.reducedMotion)
   }
 
   /** Moves the set-completion light pulse around the ring (real time). */

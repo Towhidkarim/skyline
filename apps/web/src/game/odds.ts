@@ -1,4 +1,4 @@
-import { BOARD_SIZE, rentFor, type GameState } from '@skyline/engine'
+import { BOARD_SIZE, SPACES, isOwnable, rentFor, type GameState } from '@skyline/engine'
 
 /** One space a roll could end on. */
 export interface LandingOdds {
@@ -9,6 +9,8 @@ export interface LandingOdds {
   rent: number
   /** That owner's seat, or null when nothing is owed. */
   owner: number | null
+  /** Asking price when nobody owns the space and it can be bought, else 0. */
+  price: number
 }
 
 /** Chance of each two-dice total (index 2..12). */
@@ -26,7 +28,8 @@ export function landingOdds(s: GameState, seat: number): LandingOdds[] {
     const space = (me.position + t) % BOARD_SIZE
     const owner = s.owner[space]!
     const owed = owner >= 0 && owner !== seat ? rentFor(s, space, t) : 0
-    out.push({ space, p: TOTAL(t), rent: owed, owner: owed > 0 ? owner : null })
+    const price = owner < 0 && isOwnable(space) ? SPACES[space]!.price : 0
+    out.push({ space, p: TOTAL(t), rent: owed, owner: owed > 0 ? owner : null, price })
   }
   return out
 }
