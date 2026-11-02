@@ -4,6 +4,7 @@ import { PRESETS, PRESET_TWISTS, type PresetName } from '@skyline/engine'
 import { loadGame, type GameSetup, type SavedGame, type SeatSetup, type Twists } from '../game/setup.ts'
 import { cssHex } from '../spaceInfo.ts'
 import { Icon } from './game/icons.tsx'
+import { navigate } from '../net/route.ts'
 import { Btn, Eyebrow, TokenAvatar, TwistList } from './game/ui.tsx'
 import { SetupBackdrop } from './SetupBackdrop.tsx'
 
@@ -335,7 +336,17 @@ export function SetupScreen({
               </Btn>
             </div>
             <p className="text-center text-xs text-ink-muted">
-              Hotseat: everyone takes turns on this screen.
+              Hotseat: everyone takes turns on this screen.{' '}
+              <a
+                href="/how-to-play"
+                onClick={(e) => {
+                  e.preventDefault()
+                  navigate('/how-to-play')
+                }}
+                className="font-bold text-accent underline underline-offset-2"
+              >
+                How to play
+              </a>
             </p>
           </div>
         </section>

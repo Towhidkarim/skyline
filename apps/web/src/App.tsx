@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react' // useEffect: hash listener, room socket
+import { lazy, Suspense, useEffect, useState } from 'react' // useEffect: hash listener, room socket
 import { tokenColors } from '@skyline/board'
 import { GameStore } from './game/store.ts'
 import { ROLL_SCENES, SCENES, playToScene } from './game/scenes.ts'
@@ -9,6 +9,11 @@ import { ArtScreen } from './playground/ArtScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { SetupScreen } from './screens/SetupScreen.tsx'
 import { navigate, useRoute } from './net/route.ts'
+
+// The rulebook is read-only and rarely opened, so it loads on its own.
+const RulebookScreen = lazy(() =>
+  import('./screens/rulebook/RulebookScreen.tsx').then((m) => ({ default: m.RulebookScreen })),
+)
 import { closeRoom } from './net/session.ts'
 import { OnlineMenu } from './screens/online/OnlineMenu.tsx'
 import { RoomScreen } from './screens/online/RoomScreen.tsx'
@@ -78,6 +83,12 @@ export function App() {
   if (hash === '#sounds') return <SoundBoard />
   if (hash === '#art') return <ArtScreen />
   // Online play (DECISIONS.md D44): the room owns the game, this screen only shows it.
+  if (route.kind === 'rules')
+    return (
+      <Suspense fallback={null}>
+        <RulebookScreen />
+      </Suspense>
+    )
   if (route.kind === 'online')
     return <OnlineMenu onBack={() => navigate('/')} onRoom={(code) => navigate(`/r/${code}`)} />
   if (route.kind === 'room')

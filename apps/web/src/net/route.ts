@@ -6,10 +6,11 @@
 import { useEffect, useState } from 'react'
 import { normalizeRoomCode } from '@skyline/protocol'
 
-export type Route = { kind: 'home' } | { kind: 'online' } | { kind: 'room'; code: string }
+export type Route = { kind: 'home' } | { kind: 'online' } | { kind: 'rules' } | { kind: 'room'; code: string }
 
 export function routeOf(pathname: string): Route {
   if (pathname === '/online') return { kind: 'online' }
+  if (/^\/how-to-play\/?$/.test(pathname)) return { kind: 'rules' }
   const room = /^\/r\/([^/]+)\/?$/.exec(pathname)
   const code = room ? normalizeRoomCode(decodeURIComponent(room[1]!)) : null
   return code ? { kind: 'room', code } : { kind: 'home' }

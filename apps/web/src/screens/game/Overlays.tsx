@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { SHORTCUTS } from './shortcuts.ts'
 import {
   CHANCE_CARDS,
   CHEST_CARDS,
@@ -520,24 +521,6 @@ function GameStory({ snap, store }: { snap: Snapshot; store: GameStore }) {
   )
 }
 
-/** Shortcuts, as printed in the rulebook. Every row matches a handler in GameScreen. */
-const SHORTCUTS: [string[], string][] = [
-  [['Space'], 'Roll, end turn or continue'],
-  [['B', 'A'], 'Buy, or send it to auction'],
-  [['1–4'], 'Auction: raise the bid, or bid the list price. Speed die: where to go'],
-  [['P'], 'Pass in an auction'],
-  [['P', 'U'], 'Pay the Lockup fine, or use a free card'],
-  [['C'], 'My city'],
-  [['T'], 'Propose a trade'],
-  [['Y', 'N'], 'Accept or decline an offer'],
-  [['M'], 'Sound on or off'],
-  [['L'], 'Game log'],
-  [['S'], 'Skip animations'],
-  [['F'], 'Skip to your turn'],
-  [['?'], 'This help'],
-  [['Esc'], 'Close the top panel, clear the selected tile'],
-]
-
 const RULES: [string, string][] = [
   ['Goal', 'Own the richest city when the rounds run out, or be the last one standing.'],
   [
@@ -657,6 +640,14 @@ export function HelpOverlay({ onClose, config }: { onClose: () => void; config?:
               </div>
             ))}
           </dl>
+          <a
+            href="/how-to-play"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 rounded-xl bg-card-ink px-4 py-2.5 text-center font-card text-sm font-extrabold text-card transition-[scale] duration-200 ease-spring active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Read the full rulebook
+          </a>
         </div>
       </article>
     </div>

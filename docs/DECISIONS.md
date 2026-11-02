@@ -619,3 +619,8 @@ The deal and flip of a property card hitched a little on desktop and more on pho
 - **Night:** a small spotlight in the lot's lights layer: a warm pool around the sign, a faint warm wash over the bed, and the board face lit. Empty lots now invite at night instead of going dark.
 - **Tried and dropped:** faint paving joints across the side tiles, like sidewalk slabs. The developer found the grid texture unattractive; the tiles stay plain.
 
+## D75. The rulebook page at /how-to-play (2026-11-02)
+
+- A full rulebook as a book of 16 chapters (goal, board, setup, turn, spaces, sets and building, stations and utilities, the Lockup, cards, money trouble, auctions, trading, winning, twists, online, controls) on cream card-stock pages over the lamplight table, with a contents list that follows the reader (chips on phones). Deep links: `/how-to-play#twists`.
+- Same pathname switch as D44 (`Route` gains `rules`); the screen is `React.lazy` so the main bundle does not grow. Linked from the setup screen and from the in-game help ("Read the full rulebook", new tab, so the game is not lost). Worker and service worker need no change (SPA fallback).
+- Pictures are code-drawn SVG built from the engine's data (`screens/rulebook/art.tsx`): the 40-space ring, a street growing to a hotel with its rents, the district strip, dice, Speed die faces, a loan bar. Mode numbers, rents, card text and shortcuts are read from `PRESETS`, `SPACES`, the card decks and `shortcuts.ts`, so the book follows the rules instead of repeating them. Prose rules are written by hand and must be updated with the engine (a new twist needs its chapter entry).
